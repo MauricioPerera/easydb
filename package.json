@@ -1,5 +1,5 @@
 {
-  "name": "@aspect/easydb",
+  "name": "@rckflr/easydb",
   "version": "0.7.0",
   "description": "Multi-backend storage with async/await, async iterables, and modern JavaScript — IndexedDB, Memory, D1/SQLite",
   "main": "src/easydb.js",
