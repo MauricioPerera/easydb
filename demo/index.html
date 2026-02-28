@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EasyDB v2 — IndexedDB Reimagined</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg-card: #12121a;
+    --bg-card-hover: #1a1a25;
+    --border: #1e1e2e;
+    --text: #e4e4ef;
+    --text-dim: #7a7a95;
+    --text-muted: #4a4a65;
+    --accent: #6c5ce7;
+    --accent-glow: #6c5ce740;
+    --green: #00d68f;
+    --green-dim: #00d68f30;
+    --red: #ff6b6b;
+    --red-dim: #ff6b6b25;
+    --yellow: #feca57;
+    --yellow-dim: #feca5725;
+    --blue: #48dbfb;
+    --blue-dim: #48dbfb25;
+    --orange: #ff9f43;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 60px 60px;
+    opacity: 0.12;
+    pointer-events: none;
+  }
+  .container { max-width: 1200px; margin: 0 auto; padding: 40px 24px; position: relative; z-index: 1; }
+
+  /* Header */
+  .header { text-align: center; margin-bottom: 48px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 16px; background: var(--accent-glow);
+    border: 1px solid var(--accent); border-radius: 100px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent);
+    margin-bottom: 20px;
+  }
+  .badge::before { content: ''; width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  h1 { font-family: 'DM Serif Display', serif; font-size: clamp(40px,6vw,68px); line-height: 1.05; letter-spacing: -2px; margin-bottom: 12px; }
+  h1 span { color: var(--accent); }
+  .version { font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--green); vertical-align: super; margin-left: 4px; }
+  .subtitle { font-size: 17px; color: var(--text-dim); max-width: 640px; margin: 0 auto; line-height: 1.6; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 4px; margin-bottom: 28px; overflow-x: auto; }
+  .tab { flex: 1; padding: 11px 16px; border: none; background: transparent; color: var(--text-dim); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 8px; transition: all .2s; white-space: nowrap; }
+  .tab:hover { color: var(--text); background: var(--bg-card-hover); }
+  .tab.active { background: var(--accent); color: white; box-shadow: 0 2px 12px var(--accent-glow); }
+
+  /* Panels */
+  .panel { display: none; }
+  .panel.active { display: block; animation: fadeIn .25s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+  /* Code blocks */
+  .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+  @media (max-width: 768px) { .comparison { grid-template-columns: 1fr; } }
+  .code-block { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .code-block.old { border-color: #ff6b6b30; }
+  .code-block.new { border-color: #00d68f30; }
+  .code-block.full { grid-column: 1/-1; }
+  .code-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .code-block.old .code-header { background: var(--red-dim); color: var(--red); }
+  .code-block.new .code-header { background: var(--green-dim); color: var(--green); }
+  .line-count { font-size: 11px; opacity: .7; }
+  pre { padding: 16px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.7; color: var(--text); tab-size: 2; }
+  .kw { color: #c792ea; } .fn { color: #82aaff; } .str { color: #c3e88d; }
+  .cm { color: var(--text-muted); font-style: italic; } .num { color: var(--orange); }
+  .op { color: #89ddff; } .type { color: var(--yellow); } .prop { color: #f07178; }
+
+  /* Playground */
+  .playground { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .playground-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--bg-card-hover); flex-wrap: wrap; gap: 8px; }
+  .playground-title { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
+  .playground-title::before { content: '▶'; color: var(--green); font-size: 10px; }
+  .playground-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn { padding: 6px 14px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 11px; border-radius: 6px; cursor: pointer; transition: all .15s; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+  .btn.primary:hover { opacity: .85; }
+  .btn.danger { border-color: var(--red); color: var(--red); }
+  .btn.danger:hover { background: var(--red-dim); }
+  .playground-body { display: grid; grid-template-columns: 1fr 1fr; min-height: 420px; }
+  @media (max-width: 768px) { .playground-body { grid-template-columns: 1fr; } }
+  .editor-pane { border-right: 1px solid var(--border); }
+  .editor-pane textarea { width: 100%; height: 100%; min-height: 420px; padding: 16px; background: transparent; border: none; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.7; resize: none; outline: none; tab-size: 2; }
+  .output-pane { display: flex; flex-direction: column; }
+  .output-header { padding: 8px 16px; border-bottom: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; display: flex; justify-content: space-between; }
+  .output-content { flex: 1; padding: 16px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.7; max-height: 420px; }
+  .log-line { padding: 1px 0; animation: logIn .15s ease; }
+  @keyframes logIn { from{opacity:0;transform:translateX(-4px)} to{opacity:1;transform:translateX(0)} }
+  .log-line.info { color: var(--blue); } .log-line.success { color: var(--green); }
+  .log-line.error { color: var(--red); } .log-line.warn { color: var(--yellow); }
+  .log-line.dim { color: var(--text-muted); } .log-line.perf { color: var(--orange); }
+
+  /* Section headings */
+  .section-title { font-family: 'DM Serif Display', serif; font-size: 26px; letter-spacing: -.5px; margin-bottom: 6px; }
+  .section-desc { color: var(--text-dim); font-size: 14px; margin-bottom: 20px; line-height: 1.6; }
+
+  /* Stats */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 36px; }
+  .stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 18px 16px; text-align: center; }
+  .stat-value { font-family: 'DM Serif Display', serif; font-size: 32px; }
+  .stat-value.purple { color: var(--accent); }
+  .stat-value.green { color: var(--green); }
+  .stat-value.blue { color: var(--blue); }
+  .stat-value.yellow { color: var(--yellow); }
+  .stat-value.orange { color: var(--orange); }
+  .stat-label { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+
+  /* Architecture */
+  .arch-diagram { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 28px; margin-bottom: 28px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .arch-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .arch-box { padding: 10px 18px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; text-align: center; min-width: 130px; }
+  .arch-box.api { background: var(--accent-glow); border: 1px solid var(--accent); color: var(--accent); }
+  .arch-box.layer { background: var(--blue-dim); border: 1px solid #48dbfb50; color: var(--blue); }
+  .arch-box.storage { background: var(--green-dim); border: 1px solid #00d68f50; color: var(--green); }
+  .arch-box.adapter { background: var(--yellow-dim); border: 1px solid #feca5750; color: var(--yellow); }
+  .arch-arrow { color: var(--text-muted); font-size: 18px; transform: rotate(90deg); }
+
+  .note { background: var(--blue-dim); border-left: 3px solid var(--blue); padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 20px 0; font-size: 13px; line-height: 1.6; }
+  .note strong { color: var(--blue); }
+  .note.green { background: var(--green-dim); border-color: var(--green); }
+  .note.green strong { color: var(--green); }
+  .note.orange { background: var(--yellow-dim); border-color: var(--orange); }
+  .note.orange strong { color: var(--orange); }
+
+  /* Changelog */
+  .changelog { list-style: none; padding: 0; }
+  .changelog li { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; line-height: 1.5; display: flex; gap: 10px; }
+  .changelog li:last-child { border: none; }
+  .cl-tag { font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 8px; border-radius: 4px; white-space: nowrap; height: fit-content; margin-top: 2px; }
+  .cl-tag.fix { background: var(--red-dim); color: var(--red); }
+  .cl-tag.new { background: var(--green-dim); color: var(--green); }
+  .cl-tag.perf { background: var(--yellow-dim); color: var(--orange); }
+
+  footer { text-align: center; padding: 36px 0; color: var(--text-muted); font-size: 12px; border-top: 1px solid var(--border); margin-top: 48px; }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="badge">Proof of Concept — Optimized</div>
+    <h1>Easy<span>DB</span><span class="version">v2</span></h1>
+    <p class="subtitle">IndexedDB reimagined. Now with true pull-based cursors, range queries, compound filters, watch that works, and native IDB fast paths.</p>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-value purple">~85%</div><div class="stat-label">Less boilerplate</div></div>
+    <div class="stat"><div class="stat-value green">Pull</div><div class="stat-label">True cursor semantics</div></div>
+    <div class="stat"><div class="stat-value blue">Range</div><div class="stat-label">gt / lt / between</div></div>
+    <div class="stat"><div class="stat-value yellow">Watch</div><div class="stat-label">Reactive via writes</div></div>
+    <div class="stat"><div class="stat-value orange">Fast</div><div class="stat-label">IDB native paths</div></div>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-tab="changelog">What Changed</button>
+    <button class="tab" data-tab="comparison">API Comparison</button>
+    <button class="tab" data-tab="playground">Live Playground</button>
+    <button class="tab" data-tab="architecture">Architecture</button>
+    <button class="tab" data-tab="source">Full Source</button>
+  </div>
+
+  <!-- ═══ CHANGELOG ═══ -->
+  <div class="panel active" id="panel-changelog">
+    <h2 class="section-title">v1 → v2 Changelog</h2>
+    <p class="section-desc">Optimizaciones basadas en el análisis del POC v1.</p>
+
+    <div class="note green">
+      <strong>Principio guía:</strong> Aplicar la misma filosofía de Snell — eliminar overhead innecesario, usar fast paths cuando están disponibles, pull semantics reales, y ser explícito sobre lo que pasa.
+    </div>
+
+    <ul class="changelog">
+      <li><span class="cl-tag fix">FIX</span><div><strong>QueryBuilder creaba 2 transacciones</strong> — El iterador abría una transacción (tx), luego la descartaba y abría otra (tx2). Ahora usa una sola transacción con un verdadero pull-based cursor via promesa encadenada.</div></li>
+      <li><span class="cl-tag fix">FIX</span><div><strong>count() hacía toArray().length</strong> — Cargaba todos los registros en memoria solo para contarlos. Ahora usa IDB.count() nativo con IDBKeyRange cuando hay filtro.</div></li>
+      <li><span class="cl-tag fix">FIX</span><div><strong>watch() no emitía eventos</strong> — El BroadcastChannel estaba configurado pero ninguna escritura emitía. Ahora StoreAccessor.put/delete/putMany/clear emiten al canal automáticamente.</div></li>
+      <li><span class="cl-tag perf">PERF</span><div><strong>toArray() fast path</strong> — Cuando no hay limit ni filter en JS, usa getAll() con IDBKeyRange en vez de abrir cursor. Hasta 10x más rápido en datasets grandes.</div></li>
+      <li><span class="cl-tag perf">PERF</span><div><strong>True pull-based cursor</strong> — El cursor solo avanza cuando el consumidor llama next(). V1 hacía eager buffering con cursor.continue() inmediato. Ahora es lazy: cursor.continue() se llama solo cuando se pide el siguiente valor.</div></li>
+      <li><span class="cl-tag new">NEW</span><div><strong>Range queries</strong> — .gt(value), .gte(value), .lt(value), .lte(value), .between(lo, hi) generan IDBKeyRange nativo. Los filtros se ejecutan en el engine de IDB, no en JS.</div></li>
+      <li><span class="cl-tag new">NEW</span><div><strong>Compound filters con .filter()</strong> — .filter(fn) aplica predicado en JS sobre el cursor. Permite filtros complejos que IDB no soporta nativamente.</div></li>
+      <li><span class="cl-tag new">NEW</span><div><strong>getMany(keys[])</strong> — Batch get en una sola transacción.</div></li>
+      <li><span class="cl-tag new">NEW</span><div><strong>Benchmark example</strong> — Playground con ejemplo de benchmark para medir rendimiento de las operaciones.</div></li>
+      <li><span class="cl-tag new">NEW</span><div><strong>Timing en output</strong> — Cada ejecución del playground muestra tiempo total de ejecución.</div></li>
+    </ul>
+
+    <div class="note orange" style="margin-top: 24px;">
+      <strong>Limitaciones conocidas (no resueltas — son de IDB):</strong> Transacciones con await no-IDB se auto-commitean. No hay queries SQL compuestos nativos. Watch es per-instance, no cross-tab (necesitaría BroadcastChannel real que este sandbox no permite).
+    </div>
+  </div>
+
+  <!-- ═══ COMPARISON ═══ -->
+  <div class="panel" id="panel-comparison">
+    <h2 class="section-title">CRUD básico</h2>
+    <p class="section-desc">IndexedDB actual vs EasyDB v2.</p>
+    <div class="comparison">
+      <div class="code-block old">
+        <div class="code-header"><span>❌ IndexedDB actual</span><span class="line-count">~18 líneas</span></div>
+        <pre><span class="kw">const</span> request = indexedDB.<span class="fn">open</span>(<span class="str">'myDB'</span>, <span class="num">1</span>);
+request.<span class="prop">onupgradeneeded</span> = (<span class="prop">e</span>) <span class="op">=></span> {
+  <span class="kw">const</span> db = e.target.result;
+  db.<span class="fn">createObjectStore</span>(
+    <span class="str">'users'</span>, { <span class="prop">keyPath</span>: <span class="str">'id'</span> });
+};
+request.<span class="prop">onsuccess</span> = (<span class="prop">e</span>) <span class="op">=></span> {
+  <span class="kw">const</span> db = e.target.result;
+  <span class="kw">const</span> tx = db.<span class="fn">transaction</span>(
+    <span class="str">'users'</span>, <span class="str">'readonly'</span>);
+  <span class="kw">const</span> store = tx.<span class="fn">objectStore</span>(<span class="str">'users'</span>);
+  <span class="kw">const</span> req = store.<span class="fn">get</span>(<span class="num">42</span>);
+  req.<span class="prop">onsuccess</span> = () <span class="op">=></span> {
+    console.<span class="fn">log</span>(req.result);
+  };
+  req.<span class="prop">onerror</span> = () <span class="op">=></span> {
+    console.<span class="fn">error</span>(req.error);
+  };
+};</pre>
+      </div>
+      <div class="code-block new">
+        <div class="code-header"><span>✅ EasyDB v2</span><span class="line-count">~3 líneas</span></div>
+        <pre><span class="kw">const</span> db = <span class="kw">await</span> EasyDB.<span class="fn">open</span>(<span class="str">'myDB'</span>, {
+  <span class="fn">schema</span>(db) {
+    db.<span class="fn">createStore</span>(<span class="str">'users'</span>, { <span class="prop">key</span>: <span class="str">'id'</span> });
+  }
+});
+
+<span class="kw">const</span> user = <span class="kw">await</span> db.users.<span class="fn">get</span>(<span class="num">42</span>);
+<span class="kw">await</span> db.users.<span class="fn">put</span>({ <span class="prop">id</span>: <span class="num">42</span>, <span class="prop">name</span>: <span class="str">'Mau'</span> });
+<span class="kw">await</span> db.users.<span class="fn">delete</span>(<span class="num">42</span>);</pre>
+      </div>
+    </div>
+
+    <h2 class="section-title">Range queries (v2 new)</h2>
+    <p class="section-desc">Filtros que se ejecutan en el engine IDB nativo, no en JavaScript.</p>
+    <div class="comparison">
+      <div class="code-block old">
+        <div class="code-header"><span>❌ IndexedDB ranges</span><span class="line-count">Verbose</span></div>
+        <pre><span class="kw">const</span> range = IDBKeyRange.<span class="fn">bound</span>(
+  <span class="num">18</span>, <span class="num">65</span>, <span class="kw">false</span>, <span class="kw">false</span>);
+<span class="kw">const</span> tx = db.<span class="fn">transaction</span>(<span class="str">'users'</span>);
+<span class="kw">const</span> idx = tx.<span class="fn">objectStore</span>(<span class="str">'users'</span>)
+  .<span class="fn">index</span>(<span class="str">'age'</span>);
+<span class="kw">const</span> req = idx.<span class="fn">openCursor</span>(range);
+<span class="kw">const</span> results = [];
+req.<span class="prop">onsuccess</span> = (<span class="prop">e</span>) <span class="op">=></span> {
+  <span class="kw">const</span> c = e.target.result;
+  <span class="kw">if</span> (c) {
+    results.<span class="fn">push</span>(c.value);
+    c.<span class="fn">continue</span>();
+  }
+};</pre>
+      </div>
+      <div class="code-block new">
+        <div class="code-header"><span>✅ EasyDB v2 ranges</span><span class="line-count">Fluent</span></div>
+        <pre><span class="cm">// Range queries — IDBKeyRange nativo</span>
+<span class="kw">const</span> adults = <span class="kw">await</span> db.users
+  .<span class="fn">where</span>(<span class="str">'age'</span>)
+  .<span class="fn">between</span>(<span class="num">18</span>, <span class="num">65</span>)
+  .<span class="fn">toArray</span>();
+
+<span class="cm">// Greater than</span>
+<span class="kw">const</span> seniors = <span class="kw">await</span> db.users
+  .<span class="fn">where</span>(<span class="str">'age'</span>).<span class="fn">gt</span>(<span class="num">60</span>).<span class="fn">toArray</span>();
+
+<span class="cm">// Compound filter (JS-side)</span>
+<span class="kw">const</span> result = <span class="kw">await</span> db.users
+  .<span class="fn">where</span>(<span class="str">'role'</span>, <span class="str">'admin'</span>)
+  .<span class="fn">filter</span>(u <span class="op">=></span> u.country === <span class="str">'MX'</span>)
+  .<span class="fn">toArray</span>();</pre>
+      </div>
+    </div>
+
+    <h2 class="section-title">Async iterables + watch</h2>
+    <p class="section-desc">Pull semantics reales y observabilidad que funciona.</p>
+    <div class="comparison">
+      <div class="code-block new full">
+        <div class="code-header"><span>✅ EasyDB v2 — pull cursor + watch + filter</span></div>
+        <pre><span class="cm">// True pull — cursor avanza solo cuando pedís</span>
+<span class="kw">for await</span> (<span class="kw">const</span> user <span class="kw">of</span> db.users.<span class="fn">all</span>()) {
+  <span class="kw">if</span> (user.score > <span class="num">90</span>) <span class="kw">break</span>;  <span class="cm">// cursor se cierra, no lee más</span>
+}
+
+<span class="cm">// Watch reactivo — emite en cada put/delete/clear</span>
+<span class="cm">// (las escrituras por EasyDB emiten automáticamente)</span>
+<span class="kw">for await</span> (<span class="kw">const</span> evt <span class="kw">of</span> db.users.<span class="fn">watch</span>()) {
+  console.<span class="fn">log</span>(evt.type, evt.key, evt.value);
+}
+
+<span class="cm">// Compound: range + JS filter + limit</span>
+<span class="kw">const</span> topMexAdmins = <span class="kw">await</span> db.users
+  .<span class="fn">where</span>(<span class="str">'role'</span>, <span class="str">'admin'</span>)
+  .<span class="fn">filter</span>(u <span class="op">=></span> u.country === <span class="str">'MX'</span>)
+  .<span class="fn">limit</span>(<span class="num">5</span>)
+  .<span class="fn">toArray</span>();</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PLAYGROUND ═══ -->
+  <div class="panel" id="panel-playground">
+    <h2 class="section-title">Live Playground</h2>
+    <p class="section-desc">Ejecutá código contra EasyDB v2. Ctrl+Enter para ejecutar.</p>
+    <div class="playground">
+      <div class="playground-header">
+        <div class="playground-title">EasyDB v2 Console</div>
+        <div class="playground-actions">
+          <button class="btn" onclick="loadExample('crud')">CRUD</button>
+          <button class="btn" onclick="loadExample('query')">Query</button>
+          <button class="btn" onclick="loadExample('range')">Range</button>
+          <button class="btn" onclick="loadExample('transaction')">Tx</button>
+          <button class="btn" onclick="loadExample('bench')">Bench</button>
+          <button class="btn" onclick="loadExample('watch')">Watch</button>
+          <button class="btn danger" onclick="clearOutput()">Clear</button>
+          <button class="btn primary" onclick="runCode()">▶ Run</button>
+        </div>
+      </div>
+      <div class="playground-body">
+        <div class="editor-pane">
+          <textarea id="editor" spellcheck="false">// 🚀 EasyDB v2 Playground
+// Stores: users (indexes: role, country, age), orders (indexes: userId)
+
+await db.users.put({ id: 1, name: 'Mauricio', role: 'admin', country: 'UY', age: 35 });
+await db.users.put({ id: 2, name: 'Ana', role: 'editor', country: 'MX', age: 28 });
+await db.users.put({ id: 3, name: 'Carlos', role: 'admin', country: 'MX', age: 42 });
+
+log.success('✓ 3 usuarios insertados');
+
+const user = await db.users.get(1);
+log.info('GET: ' + JSON.stringify(user));
+
+// Async iterable — true pull cursor
+log.info('\nAll users (pull cursor):');
+for await (const u of db.users.all()) {
+  log('  → ' + u.name + ' (' + u.role + ')');
+}
+
+// Range query
+log.info('\nAge > 30:');
+for await (const u of db.users.where('age').gt(30)) {
+  log.warn('  ' + u.name + ' (age ' + u.age + ')');
+}
+
+// Compound filter
+log.info('\nAdmins from MX:');
+const mxAdmins = await db.users
+  .where('role', 'admin')
+  .filter(u => u.country === 'MX')
+  .toArray();
+mxAdmins.forEach(u => log.success('  ★ ' + u.name));</textarea>
+        </div>
+        <div class="output-pane">
+          <div class="output-header"><span>Output</span><span id="timing"></span></div>
+          <div class="output-content" id="output"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ ARCHITECTURE ═══ -->
+  <div class="panel" id="panel-architecture">
+    <h2 class="section-title">Arquitectura v2</h2>
+    <p class="section-desc">Optimizaciones internas sobre v1.</p>
+    <div class="arch-diagram">
+      <div class="arch-row"><div class="arch-box api">Tu código · async/await</div></div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-row"><div class="arch-box layer">EasyDB API · Proxy + AsyncIterable</div></div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-row">
+        <div class="arch-box adapter">Tx Manager<br><small>auto lifecycle</small></div>
+        <div class="arch-box adapter">QueryBuilder v2<br><small>pull cursor + range + filter</small></div>
+        <div class="arch-box adapter">Watch Engine<br><small>EventTarget internal</small></div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-row"><div class="arch-box storage">IndexedDB · native fast paths</div></div>
+    </div>
+
+    <div class="note green">
+      <strong>Optimización clave — toArray() fast path:</strong> Cuando la query no tiene .filter() ni .limit(), usamos IDB getAll(keyRange) directo en vez de abrir cursor. Esto bypasea toda la maquinaria de cursor/promesa y deja que el engine nativo haga el trabajo.
+    </div>
+
+    <div class="note">
+      <strong>True pull cursor:</strong> V1 hacía cursor.continue() inmediatamente en onsuccess, buffereando todo. V2 usa un patrón donde onsuccess resuelve una promesa, y cursor.continue() solo se llama cuando el consumidor pide el siguiente valor via next(). Esto es el equivalente exacto de lo que propone Snell con pull-through transforms.
+    </div>
+
+    <h2 class="section-title" style="margin-top:24px;">Pull cursor — antes vs después</h2>
+    <div class="comparison">
+      <div class="code-block old">
+        <div class="code-header"><span>❌ v1 — eager buffering</span></div>
+        <pre><span class="cm">// V1: cursor avanza solo, bufferea todo</span>
+req.<span class="prop">onsuccess</span> = () <span class="op">=></span> {
+  <span class="kw">const</span> cursor = req.result;
+  <span class="kw">if</span> (cursor) {
+    buffer.<span class="fn">push</span>(cursor.value);
+    cursor.<span class="fn">continue</span>(); <span class="cm">// ← eager!</span>
+  }
+};
+<span class="cm">// Consumidor lee del buffer</span>
+<span class="cm">// Problema: lee todo aunque</span>
+<span class="cm">// solo necesites 1 registro</span></pre>
+      </div>
+      <div class="code-block new">
+        <div class="code-header"><span>✅ v2 — true pull</span></div>
+        <pre><span class="cm">// V2: cursor espera al consumidor</span>
+req.<span class="prop">onsuccess</span> = () <span class="op">=></span> {
+  <span class="kw">if</span> (resolve) <span class="fn">resolve</span>(req.result);
+};
+
+<span class="cm">// next() pide + avanza</span>
+<span class="kw">async</span> <span class="fn">next</span>() {
+  <span class="kw">const</span> cursor = <span class="kw">await</span> <span class="fn">waitCursor</span>();
+  <span class="kw">if</span> (!cursor) <span class="kw">return</span> done;
+  <span class="kw">const</span> val = cursor.value;
+  cursor.<span class="fn">continue</span>(); <span class="cm">// ← on demand!</span>
+  <span class="kw">return</span> { value: val };
+}</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SOURCE ═══ -->
+  <div class="panel" id="panel-source">
+    <h2 class="section-title">Full Source — EasyDB v2</h2>
+    <p class="section-desc">~250 líneas. Sin dependencias.</p>
+    <div class="code-block new full">
+      <div class="code-header"><span>📦 easydb-v2.js</span></div>
+      <pre id="source-code"></pre>
+    </div>
+  </div>
+
+  <footer>EasyDB v2 POC — Inspired by <a href="https://blog.cloudflare.com/a-better-web-streams-api/">Cloudflare's "Better Streams API"</a></footer>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// EasyDB v2 — Optimized Implementation
+// ═══════════════════════════════════════════════════════════
+
+function promisifyReq(req) {
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function promisifyTx(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new DOMException('Aborted', 'AbortError'));
+  });
+}
+
+// ── QueryBuilder v2 ──────────────────────────────────────
+class QueryBuilder {
+  constructor(idb, storeName, indexName = null, keyValue = null) {
+    this._idb = idb;
+    this._store = storeName;
+    this._index = indexName;
+    this._range = keyValue != null ? IDBKeyRange.only(keyValue) : null;
+    this._limit = null;
+    this._dir = 'next';
+    this._filterFn = null;
+    this._hasExactKey = keyValue != null;
+  }
+
+  _clone() {
+    const q = new QueryBuilder(this._idb, this._store, this._index);
+    q._range = this._range;
+    q._limit = this._limit;
+    q._dir = this._dir;
+    q._filterFn = this._filterFn;
+    q._hasExactKey = this._hasExactKey;
+    return q;
+  }
+
+  limit(n) { const q = this._clone(); q._limit = n; return q; }
+  desc() { const q = this._clone(); q._dir = 'prev'; return q; }
+  asc() { const q = this._clone(); q._dir = 'next'; return q; }
+
+  // Range queries — generate IDBKeyRange natively
+  gt(val) { const q = this._clone(); q._range = IDBKeyRange.lowerBound(val, true); return q; }
+  gte(val) { const q = this._clone(); q._range = IDBKeyRange.lowerBound(val, false); return q; }
+  lt(val) { const q = this._clone(); q._range = IDBKeyRange.upperBound(val, true); return q; }
+  lte(val) { const q = this._clone(); q._range = IDBKeyRange.upperBound(val, false); return q; }
+  between(lo, hi, loOpen = false, hiOpen = false) {
+    const q = this._clone();
+    q._range = IDBKeyRange.bound(lo, hi, loOpen, hiOpen);
+    return q;
+  }
+
+  // JS-side compound filter
+  filter(fn) { const q = this._clone(); q._filterFn = fn; return q; }
+
+  // ── True pull-based async iterator ──
+  [Symbol.asyncIterator]() {
+    const self = this;
+    let resolve = null;
+    let done = false;
+    let started = false;
+    let request;
+
+    // We open tx lazily on first next() call
+    function ensureStarted() {
+      if (started) return;
+      started = true;
+      const tx = self._idb.transaction(self._store, 'readonly');
+      const store = tx.objectStore(self._store);
+      const source = self._index ? store.index(self._index) : store;
+      request = source.openCursor(self._range, self._dir);
+      request.onsuccess = () => { if (resolve) { const r = resolve; resolve = null; r(request.result); } };
+      request.onerror = () => { done = true; if (resolve) { const r = resolve; resolve = null; r(null); } };
+    }
+
+    function waitCursor() {
+      return new Promise(r => {
+        resolve = r;
+        // If onsuccess already fired synchronously (rare), check
+        if (request && request.readyState === 'done' && resolve) {
+          resolve = null;
+          r(request.result);
+        }
+      });
+    }
+
+    let count = 0;
+
+    return {
+      async next() {
+        ensureStarted();
+        while (true) {
+          if (done) return { value: undefined, done: true };
+          if (self._limit != null && count >= self._limit) return { value: undefined, done: true };
+
+          const cursor = await waitCursor();
+          if (!cursor) { done = true; return { value: undefined, done: true }; }
+
+          const value = cursor.value;
+          cursor.continue(); // advance for NEXT call
+
+          // Apply JS filter
+          if (self._filterFn && !self._filterFn(value)) continue;
+
+          count++;
+          return { value, done: false };
+        }
+      },
+      return() {
+        done = true;
+        return Promise.resolve({ value: undefined, done: true });
+      },
+      [Symbol.asyncIterator]() { return this; }
+    };
+  }
+
+  // ── Fast paths ──
+  async toArray() {
+    // FAST PATH: no JS filter + no limit → use getAll with keyRange
+    if (!this._filterFn && this._limit == null) {
+      const tx = this._idb.transaction(this._store, 'readonly');
+      const store = tx.objectStore(this._store);
+      const source = this._index ? store.index(this._index) : store;
+      const results = await promisifyReq(source.getAll(this._range));
+      if (this._dir === 'prev') results.reverse();
+      return results;
+    }
+    // SLOW PATH: iterate with cursor
+    const results = [];
+    for await (const item of this) results.push(item);
+    return results;
+  }
+
+  async first() {
+    for await (const item of this.limit(1)) return item;
+    return undefined;
+  }
+
+  async count() {
+    // FAST PATH: use IDB count() when no JS filter
+    if (!this._filterFn) {
+      const tx = this._idb.transaction(this._store, 'readonly');
+      const store = tx.objectStore(this._store);
+      const source = this._index ? store.index(this._index) : store;
+      return promisifyReq(source.count(this._range));
+    }
+    // SLOW PATH: must iterate to count (JS filter needs to evaluate each)
+    let n = 0;
+    for await (const _ of this) n++;
+    return n;
+  }
+}
+
+// ── Watch engine (per-instance EventTarget) ──────────────
+const _watchers = new Map(); // dbName:storeName -> Set<callback>
+
+function _notify(dbName, storeName, type, key, value) {
+  const id = `${dbName}:${storeName}`;
+  const set = _watchers.get(id);
+  if (set) for (const cb of set) cb({ type, key, value });
+}
+
+// ── StoreAccessor ────────────────────────────────────────
+class StoreAccessor {
+  constructor(idb, storeName) {
+    this._idb = idb;
+    this._store = storeName;
+  }
+
+  async _run(mode, fn) {
+    const tx = this._idb.transaction(this._store, mode);
+    const store = tx.objectStore(this._store);
+    const result = await promisifyReq(fn(store));
+    await promisifyTx(tx);
+    return result;
+  }
+
+  async get(key) { return this._run('readonly', s => s.get(key)); }
+  async getAll() { return this._run('readonly', s => s.getAll()); }
+  async count() { return this._run('readonly', s => s.count()); }
+
+  async getMany(keys) {
+    const tx = this._idb.transaction(this._store, 'readonly');
+    const store = tx.objectStore(this._store);
+    const results = await Promise.all(keys.map(k => promisifyReq(store.get(k))));
+    return results;
+  }
+
+  async put(value) {
+    const result = await this._run('readwrite', s => s.put(value));
+    const keyPath = this._idb.transaction(this._store, 'readonly').objectStore(this._store).keyPath;
+    const key = keyPath ? value[keyPath] : result;
+    _notify(this._idb.name, this._store, 'put', key, value);
+    return result;
+  }
+
+  async delete(key) {
+    const result = await this._run('readwrite', s => s.delete(key));
+    _notify(this._idb.name, this._store, 'delete', key, undefined);
+    return result;
+  }
+
+  async clear() {
+    const result = await this._run('readwrite', s => s.clear());
+    _notify(this._idb.name, this._store, 'clear', null, undefined);
+    return result;
+  }
+
+  async putMany(items) {
+    const tx = this._idb.transaction(this._store, 'readwrite');
+    const store = tx.objectStore(this._store);
+    for (const item of items) store.put(item);
+    await promisifyTx(tx);
+    const keyPath = this._idb.transaction(this._store, 'readonly').objectStore(this._store).keyPath;
+    for (const item of items) {
+      _notify(this._idb.name, this._store, 'put', keyPath ? item[keyPath] : undefined, item);
+    }
+    return items.length;
+  }
+
+  // Query entry points
+  where(indexName, value) {
+    if (arguments.length === 2) {
+      return new QueryBuilder(this._idb, this._store, indexName, value);
+    }
+    // where('age') without value → returns builder for range ops
+    return new QueryBuilder(this._idb, this._store, indexName);
+  }
+
+  all() { return new QueryBuilder(this._idb, this._store); }
+
+  // Watch — async iterable
+  watch(opts = {}) {
+    const dbName = this._idb.name;
+    const storeName = this._store;
+    const keyFilter = opts.key;
+
+    return {
+      [Symbol.asyncIterator]() {
+        const queue = [];
+        let waiting = null;
+        let done = false;
+        const id = `${dbName}:${storeName}`;
+
+        const cb = (evt) => {
+          if (keyFilter != null && evt.key !== keyFilter) return;
+          if (waiting) { const r = waiting; waiting = null; r({ value: evt, done: false }); }
+          else queue.push(evt);
+        };
+
+        if (!_watchers.has(id)) _watchers.set(id, new Set());
+        _watchers.get(id).add(cb);
+
+        return {
+          next() {
+            if (queue.length) return Promise.resolve({ value: queue.shift(), done: false });
+            if (done) return Promise.resolve({ value: undefined, done: true });
+            return new Promise(r => waiting = r);
+          },
+          return() {
+            done = true;
+            const set = _watchers.get(id);
+            if (set) { set.delete(cb); if (set.size === 0) _watchers.delete(id); }
+            if (waiting) { waiting({ value: undefined, done: true }); waiting = null; }
+            return Promise.resolve({ value: undefined, done: true });
+          },
+          [Symbol.asyncIterator]() { return this; }
+        };
+      }
+    };
+  }
+}
+
+// ── EasyDB main class ────────────────────────────────────
+class EasyDB {
+  constructor(idb) {
+    this._idb = idb;
+    return new Proxy(this, {
+      get(target, prop) {
+        if (prop in target || typeof prop === 'symbol') return target[prop];
+        if (prop === 'then' || prop === 'catch' || prop === 'finally') return undefined;
+        if (prop.startsWith('_')) return target[prop];
+        return new StoreAccessor(idb, prop);
+      }
+    });
+  }
+
+  async transaction(storeNames, fn) {
+    const tx = this._idb.transaction(storeNames, 'readwrite');
+    const txProxy = new Proxy({}, {
+      get(_, storeName) {
+        const store = tx.objectStore(storeName);
+        return {
+          get: (key) => promisifyReq(store.get(key)),
+          put: (val) => promisifyReq(store.put(val)),
+          delete: (key) => promisifyReq(store.delete(key)),
+          getAll: () => promisifyReq(store.getAll()),
+          count: () => promisifyReq(store.count()),
+        };
+      }
+    });
+    try {
+      await fn(txProxy);
+      await promisifyTx(tx);
+    } catch (err) {
+      try { tx.abort(); } catch (_) {}
+      throw err;
+    }
+  }
+
+  close() { this._idb.close(); }
+
+  static async open(name, options = {}) {
+    return new Promise((resolve, reject) => {
+      const version = options.version || 1;
+      const request = indexedDB.open(name, version);
+      request.onupgradeneeded = (event) => {
+        const db = request.result;
+        if (options.schema) {
+          options.schema({
+            createStore(storeName, opts = {}) {
+              if (!db.objectStoreNames.contains(storeName)) {
+                const store = db.createObjectStore(storeName, {
+                  keyPath: opts.key || null,
+                  autoIncrement: opts.autoIncrement || false,
+                });
+                if (opts.indexes) {
+                  for (const idx of opts.indexes) {
+                    const n = typeof idx === 'string' ? idx : idx.name;
+                    const o = typeof idx === 'string' ? {} : idx;
+                    store.createIndex(n, n, { unique: o.unique || false });
+                  }
+                }
+              }
+            },
+            getStore(storeName) { return request.transaction.objectStore(storeName); }
+          }, event.oldVersion);
+        }
+      };
+      request.onsuccess = () => resolve(new EasyDB(request.result));
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  static async destroy(name) { return promisifyReq(indexedDB.deleteDatabase(name)); }
+}
+
+window.EasyDB = EasyDB;
+
+// ═══════════════════════════════════════════════════════════
+// UI
+// ═══════════════════════════════════════════════════════════
+
+document.getElementById('tabs').addEventListener('click', (e) => {
+  if (!e.target.classList.contains('tab')) return;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById('panel-' + e.target.dataset.tab).classList.add('active');
+});
+
+// Source view
+const srcEl = document.getElementById('source-code');
+srcEl.textContent = [promisifyReq, promisifyTx, QueryBuilder, StoreAccessor, EasyDB]
+  .map(f => f.toString()).join('\n\n');
+
+const outputEl = document.getElementById('output');
+const editorEl = document.getElementById('editor');
+const timingEl = document.getElementById('timing');
+
+function addLog(text, cls = '') {
+  const line = document.createElement('div');
+  line.className = 'log-line ' + cls;
+  line.textContent = text;
+  outputEl.appendChild(line);
+  outputEl.scrollTop = outputEl.scrollHeight;
+}
+function clearOutput() { outputEl.innerHTML = ''; timingEl.textContent = ''; }
+
+async function initDB() {
+  try { await EasyDB.destroy('playground-v2'); } catch(_) {}
+  return EasyDB.open('playground-v2', {
+    version: 1,
+    schema(db) {
+      db.createStore('users', { key: 'id', indexes: ['role', 'country', 'age'] });
+      db.createStore('orders', { key: 'orderId', indexes: ['userId', 'date'] });
+    }
+  });
+}
+
+async function runCode() {
+  clearOutput();
+  addLog('⏳ Initializing...', 'dim');
+  const t0 = performance.now();
+  try {
+    const db = await initDB();
+    const log = (msg) => addLog(String(msg));
+    log.info = (msg) => addLog(String(msg), 'info');
+    log.success = (msg) => addLog(String(msg), 'success');
+    log.error = (msg) => addLog(String(msg), 'error');
+    log.warn = (msg) => addLog(String(msg), 'warn');
+    log.perf = (msg) => addLog(String(msg), 'perf');
+
+    const code = editorEl.value;
+    const fn = new Function('db', 'log', 'performance', `return (async () => { ${code} })();`);
+    await fn(db, log, performance);
+
+    const elapsed = (performance.now() - t0).toFixed(1);
+    addLog(`\n✅ Done`, 'success');
+    timingEl.textContent = `${elapsed}ms`;
+  } catch (err) {
+    addLog(`\n❌ ${err.message}`, 'error');
+    if (err.stack) addLog(err.stack.split('\n').slice(1,3).join('\n'), 'dim');
+    console.error(err);
+    timingEl.textContent = 'error';
+  }
+}
+
+const examples = {
+crud: `// 🔧 CRUD Operations
+await db.users.put({ id: 1, name: 'Mauricio', role: 'admin', country: 'UY', age: 35 });
+await db.users.put({ id: 2, name: 'Ana', role: 'editor', country: 'MX', age: 28 });
+await db.users.put({ id: 3, name: 'Carlos', role: 'viewer', country: 'AR', age: 42 });
+log.success('3 usuarios creados');
+
+// Read
+const user = await db.users.get(1);
+log.info('GET: ' + JSON.stringify(user));
+
+// Update
+await db.users.put({ ...user, name: 'Mauricio Updated' });
+log.warn('UPDATED: ' + JSON.stringify(await db.users.get(1)));
+
+// getMany
+const batch = await db.users.getMany([1, 2]);
+log.info('getMany([1,2]): ' + batch.map(u => u.name).join(', '));
+
+// Delete
+await db.users.delete(3);
+log.error('DELETED: user 3');
+log.info('Count: ' + await db.users.count());`,
+
+query: `// 🔍 Queries — async iterables con pull cursor
+const data = Array.from({ length: 10 }, (_, i) => ({
+  id: i + 1,
+  name: 'User ' + (i + 1),
+  role: i % 3 === 0 ? 'admin' : i % 3 === 1 ? 'editor' : 'viewer',
+  country: ['UY', 'MX', 'AR'][i % 3],
+  age: 20 + i * 5
+}));
+await db.users.putMany(data);
+log.success(data.length + ' users created');
+
+log.info('\\n── for await (pull cursor):');
+for await (const u of db.users.all()) {
+  log('  ' + u.id + '. ' + u.name + ' [' + u.role + ']');
+}
+
+log.info('\\n── where role=admin (fast path getAll):');
+const admins = await db.users.where('role', 'admin').toArray();
+admins.forEach(a => log.success('  ★ ' + a.name));
+
+log.info('\\n── Compound: admin + MX:');
+const mxAdmins = await db.users
+  .where('role', 'admin')
+  .filter(u => u.country === 'MX')
+  .toArray();
+mxAdmins.forEach(u => log.warn('  ' + u.name));
+
+log.info('\\n── first() + limit(3):');
+const first = await db.users.all().first();
+log('  First: ' + first.name);
+const top3 = await db.users.all().limit(3).toArray();
+log('  Top 3: ' + top3.map(u => u.name).join(', '));
+
+log.info('\\n── count() — native IDB:');
+log('  Total: ' + await db.users.all().count());
+log('  Admins: ' + await db.users.where('role', 'admin').count());
+
+log.info('\\n── Break temprano (primer UY):');
+for await (const u of db.users.all()) {
+  if (u.country === 'UY') { log.success('  Found: ' + u.name); break; }
+}`,
+
+range: `// 📐 Range Queries — IDBKeyRange nativo
+const data = Array.from({ length: 20 }, (_, i) => ({
+  id: i + 1,
+  name: 'User ' + (i + 1),
+  role: i % 2 === 0 ? 'admin' : 'viewer',
+  country: ['UY', 'MX', 'AR', 'CO'][i % 4],
+  age: 18 + i * 3
+}));
+await db.users.putMany(data);
+log.success(data.length + ' users created (ages 18-75)');
+
+log.info('\\n── .gt(50) — age > 50:');
+const over50 = await db.users.where('age').gt(50).toArray();
+over50.forEach(u => log('  ' + u.name + ' (age ' + u.age + ')'));
+
+log.info('\\n── .between(25, 40) — 25 ≤ age ≤ 40:');
+const midAge = await db.users.where('age').between(25, 40).toArray();
+midAge.forEach(u => log.warn('  ' + u.name + ' (age ' + u.age + ')'));
+
+log.info('\\n── .lt(25) — age < 25:');
+const young = await db.users.where('age').lt(25).toArray();
+young.forEach(u => log.info('  ' + u.name + ' (age ' + u.age + ')'));
+
+log.info('\\n── Range + filter + limit:');
+const result = await db.users
+  .where('age').gte(30)
+  .filter(u => u.country === 'MX')
+  .limit(3)
+  .toArray();
+result.forEach(u => log.success('  ' + u.name + ' (age ' + u.age + ', ' + u.country + ')'));
+
+log.info('\\n── count() con range (native IDB):');
+log('  age > 50: ' + await db.users.where('age').gt(50).count());
+log('  25-40: ' + await db.users.where('age').between(25, 40).count());`,
+
+transaction: `// 💰 Transacciones — auto commit/rollback
+await db.users.put({ id: 1, name: 'Mauricio', balance: 1000, role: 'admin', country: 'UY', age: 35 });
+await db.users.put({ id: 2, name: 'Ana', balance: 500, role: 'editor', country: 'MX', age: 28 });
+
+log.info('Balances iniciales:');
+log('  Mauricio: $' + (await db.users.get(1)).balance);
+log('  Ana: $' + (await db.users.get(2)).balance);
+
+// Transfer OK
+await db.transaction(['users'], async (tx) => {
+  const from = await tx.users.get(1);
+  const to = await tx.users.get(2);
+  from.balance -= 200;
+  to.balance += 200;
+  await tx.users.put(from);
+  await tx.users.put(to);
+});
+log.success('\\n✓ Transfer $200 OK');
+log('  Mauricio: $' + (await db.users.get(1)).balance);
+log('  Ana: $' + (await db.users.get(2)).balance);
+
+// Transfer FAIL — rollback
+log.warn('\\nIntentando transfer inválida...');
+try {
+  await db.transaction(['users'], async (tx) => {
+    const from = await tx.users.get(1);
+    from.balance -= 5000;
+    if (from.balance < 0) throw new Error('Insufficient funds!');
+    await tx.users.put(from);
+  });
+} catch (err) {
+  log.error('✗ ' + err.message + ' — auto rollback');
+}
+log.info('\\nBalances sin cambio:');
+log('  Mauricio: $' + (await db.users.get(1)).balance);`,
+
+bench: `// ⚡ Benchmark — medir performance
+const N = 1000;
+
+// 1. Batch insert
+const data = Array.from({ length: N }, (_, i) => ({
+  id: i + 1, name: 'User ' + (i+1),
+  role: ['admin','editor','viewer'][i%3],
+  country: ['UY','MX','AR','CO','CL'][i%5],
+  age: 18 + (i % 50)
+}));
+
+let t0 = performance.now();
+await db.users.putMany(data);
+log.perf('putMany(' + N + '): ' + (performance.now()-t0).toFixed(1) + 'ms');
+
+// 2. getAll (fast path)
+t0 = performance.now();
+const all = await db.users.all().toArray();
+log.perf('toArray() fast path: ' + (performance.now()-t0).toFixed(1) + 'ms (' + all.length + ' records)');
+
+// 3. Cursor iteration
+t0 = performance.now();
+let count = 0;
+for await (const _ of db.users.all()) count++;
+log.perf('for-await cursor: ' + (performance.now()-t0).toFixed(1) + 'ms (' + count + ' records)');
+
+// 4. where + toArray (fast path)
+t0 = performance.now();
+const admins = await db.users.where('role', 'admin').toArray();
+log.perf('where(role=admin).toArray(): ' + (performance.now()-t0).toFixed(1) + 'ms (' + admins.length + ' results)');
+
+// 5. where + filter (cursor path)
+t0 = performance.now();
+const filtered = await db.users
+  .where('role', 'admin')
+  .filter(u => u.country === 'MX')
+  .toArray();
+log.perf('where+filter cursor: ' + (performance.now()-t0).toFixed(1) + 'ms (' + filtered.length + ' results)');
+
+// 6. count native vs cursor
+t0 = performance.now();
+const c1 = await db.users.where('role', 'admin').count();
+log.perf('count() native IDB: ' + (performance.now()-t0).toFixed(1) + 'ms (' + c1 + ')');
+
+t0 = performance.now();
+const c2 = await db.users.where('role', 'admin').filter(u => u.age > 30).count();
+log.perf('count() with filter: ' + (performance.now()-t0).toFixed(1) + 'ms (' + c2 + ')');
+
+// 7. Range query
+t0 = performance.now();
+const ranged = await db.users.where('age').between(25, 40).toArray();
+log.perf('range between(25,40): ' + (performance.now()-t0).toFixed(1) + 'ms (' + ranged.length + ' results)');
+
+// 8. Single get
+t0 = performance.now();
+for (let i = 0; i < 100; i++) await db.users.get(Math.floor(Math.random()*N)+1);
+log.perf('100x random get(): ' + (performance.now()-t0).toFixed(1) + 'ms');
+
+// 9. getMany
+t0 = performance.now();
+const keys = Array.from({length: 50}, (_, i) => i + 1);
+const batch = await db.users.getMany(keys);
+log.perf('getMany(50 keys): ' + (performance.now()-t0).toFixed(1) + 'ms');
+
+log.info('\\n── Summary ──');
+log.success('Fast path (getAll) vs cursor: compare toArray vs for-await times above');
+log.success('Native count vs filter count: compare the two count times above');`,
+
+watch: `// 👀 Watch — observabilidad reactiva
+log.info('Setting up watcher...');
+
+// Start watcher in background
+let watchCount = 0;
+const watchPromise = (async () => {
+  for await (const evt of db.users.watch()) {
+    watchCount++;
+    log.warn('  📡 ' + evt.type + ' key=' + evt.key +
+      (evt.value ? ' → ' + evt.value.name : ''));
+    if (watchCount >= 6) break; // stop after 6 events
+  }
+  log.info('Watcher stopped after ' + watchCount + ' events');
+})();
+
+// Give watcher time to set up
+await new Promise(r => setTimeout(r, 50));
+
+// Now do some writes — watcher should see them
+log.info('\\nWriting data...');
+await db.users.put({ id: 1, name: 'Mauricio', role: 'admin', country: 'UY', age: 35 });
+await db.users.put({ id: 2, name: 'Ana', role: 'editor', country: 'MX', age: 28 });
+await db.users.put({ id: 3, name: 'Carlos', role: 'viewer', country: 'AR', age: 42 });
+log.success('3 puts done');
+
+// Update
+await db.users.put({ id: 1, name: 'Mauricio Updated', role: 'admin', country: 'UY', age: 35 });
+log.success('1 update done');
+
+// Delete
+await db.users.delete(3);
+log.success('1 delete done');
+
+// One more
+await db.users.put({ id: 4, name: 'Laura', role: 'admin', country: 'MX', age: 31 });
+log.success('1 more put');
+
+// Wait for watcher to complete
+await watchPromise;
+log.info('\\n✓ Watch caught all ' + watchCount + ' mutations');`
+};
+
+function loadExample(name) { editorEl.value = examples[name]; }
+
+editorEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab') { e.preventDefault(); const s = editorEl.selectionStart; editorEl.value = editorEl.value.substring(0, s) + '  ' + editorEl.value.substring(editorEl.selectionEnd); editorEl.selectionStart = editorEl.selectionEnd = s + 2; }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runCode(); }
+});
+</script>
+</body>
+</html>

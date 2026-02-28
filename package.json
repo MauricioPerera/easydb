@@ -1,0 +1,44 @@
+{
+  "name": "@aspect/easydb",
+  "version": "0.2.0",
+  "description": "IndexedDB reimagined with async/await, async iterables, and modern JavaScript primitives",
+  "main": "src/easydb.js",
+  "module": "src/easydb.js",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./src/easydb.js",
+      "default": "./src/easydb.js"
+    }
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "demo": "open demo/index.html"
+  },
+  "keywords": [
+    "indexeddb",
+    "database",
+    "async-iterable",
+    "browser-storage",
+    "wrapper",
+    "proxy",
+    "pull-cursor",
+    "range-query",
+    "watch",
+    "reactive"
+  ],
+  "author": "Mauricio Perera <https://automators.work>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MauricioPerera/easydb"
+  },
+  "homepage": "https://github.com/MauricioPerera/easydb#readme",
+  "bugs": {
+    "url": "https://github.com/MauricioPerera/easydb/issues"
+  }
+}
