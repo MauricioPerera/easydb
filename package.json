@@ -1,7 +1,7 @@
 {
   "name": "@aspect/easydb",
-  "version": "0.4.0",
-  "description": "Multi-backend storage with async/await, async iterables, and modern JavaScript — IndexedDB, Memory, and more",
+  "version": "0.5.0",
+  "description": "Multi-backend storage with async/await, async iterables, and modern JavaScript — IndexedDB, Memory, D1/SQLite",
   "main": "src/easydb.js",
   "module": "src/easydb.js",
   "types": "src/easydb.d.ts",
@@ -17,6 +17,9 @@
     },
     "./adapters/memory": {
       "import": "./src/adapters/memory.js"
+    },
+    "./adapters/d1": {
+      "import": "./src/adapters/d1.js"
     }
   },
   "files": [
@@ -28,7 +31,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "metrics": "echo \"Core: $(wc -c < src/easydb.js) bytes ($(wc -l < src/easydb.js) LOC) | IDB: $(wc -c < src/adapters/indexeddb.js) bytes ($(wc -l < src/adapters/indexeddb.js) LOC) | Mem: $(wc -c < src/adapters/memory.js) bytes ($(wc -l < src/adapters/memory.js) LOC) | Total: $(cat src/easydb.js src/adapters/indexeddb.js src/adapters/memory.js | wc -c) bytes | Gzip: $(cat src/easydb.js src/adapters/indexeddb.js src/adapters/memory.js | gzip -c | wc -c) bytes\"",
+    "metrics": "echo \"Core: $(wc -l < src/easydb.js) LOC | IDB: $(wc -l < src/adapters/indexeddb.js) LOC | Mem: $(wc -l < src/adapters/memory.js) LOC | D1: $(wc -l < src/adapters/d1.js) LOC | Browser gzip: $(cat src/easydb.js src/adapters/indexeddb.js | gzip -c | wc -c)B | Workers gzip: $(cat src/easydb.js src/adapters/d1.js | gzip -c | wc -c)B\"",
     "demo": "open demo/index.html"
   },
   "keywords": [
@@ -44,6 +47,9 @@
     "reactive",
     "adapter",
     "memory-adapter",
+    "d1-adapter",
+    "cloudflare-workers",
+    "sqlite",
     "multi-backend"
   ],
   "author": "Mauricio Perera <https://automators.work>",
@@ -60,6 +66,7 @@
     "example": "examples"
   },
   "devDependencies": {
+    "better-sqlite3": "^12.6.2",
     "fake-indexeddb": "^6.2.5",
     "vitest": "^4.0.18"
   }

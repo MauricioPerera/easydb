@@ -35,22 +35,25 @@ jobs:
           CORE_LOC=$(wc -l < src/easydb.js)
           IDB_LOC=$(wc -l < src/adapters/indexeddb.js)
           MEM_LOC=$(wc -l < src/adapters/memory.js)
-          TOTAL=$(cat src/easydb.js src/adapters/indexeddb.js src/adapters/memory.js | wc -c)
+          D1_LOC=$(wc -l < src/adapters/d1.js)
           CORE_IDB=$(cat src/easydb.js src/adapters/indexeddb.js | gzip -c | wc -c)
           CORE_MEM=$(cat src/easydb.js src/adapters/memory.js | gzip -c | wc -c)
+          CORE_D1=$(cat src/easydb.js src/adapters/d1.js | gzip -c | wc -c)
           echo "## Bundle Metrics" >> $GITHUB_STEP_SUMMARY
           echo "| Component | LOC | Raw |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|-----|-----|" >> $GITHUB_STEP_SUMMARY
           echo "| Core | ${CORE_LOC} | $(wc -c < src/easydb.js) bytes |" >> $GITHUB_STEP_SUMMARY
           echo "| IDB Adapter | ${IDB_LOC} | $(wc -c < src/adapters/indexeddb.js) bytes |" >> $GITHUB_STEP_SUMMARY
           echo "| Memory Adapter | ${MEM_LOC} | $(wc -c < src/adapters/memory.js) bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| D1 Adapter | ${D1_LOC} | $(wc -c < src/adapters/d1.js) bytes |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Bundle | Gzip |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|------|" >> $GITHUB_STEP_SUMMARY
           echo "| Core + IDB (browser) | ${CORE_IDB} bytes |" >> $GITHUB_STEP_SUMMARY
-          echo "| Core + Memory (test) | ${CORE_MEM} bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| Core + Memory (test/SSR) | ${CORE_MEM} bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| Core + D1 (Workers) | ${CORE_D1} bytes |" >> $GITHUB_STEP_SUMMARY
           echo ""
-          echo "Core: ${CORE_LOC} LOC | IDB: ${IDB_LOC} LOC | Mem: ${MEM_LOC} LOC"
-          echo "Browser (Core+IDB): ${CORE_IDB} bytes gzip | Test (Core+Mem): ${CORE_MEM} bytes gzip"
+          echo "Core: ${CORE_LOC} LOC | IDB: ${IDB_LOC} LOC | Mem: ${MEM_LOC} LOC | D1: ${D1_LOC} LOC"
+          echo "Browser (Core+IDB): ${CORE_IDB}B gzip | Workers (Core+D1): ${CORE_D1}B gzip"
       - name: Test coverage
         run: npx vitest run --coverage --coverage.reporter=text 2>&1 | tail -20

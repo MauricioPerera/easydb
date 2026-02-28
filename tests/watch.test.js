@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { EasyDB } from '../src/easydb.js';
 import { createTestDB, destroyTestDB, wait } from './helpers.js';
 
 describe('Watch — reactive observation', () => {
@@ -185,5 +186,86 @@ describe('Watch — reactive observation', () => {
     // Should only have the trigger event, not the orders event
     expect(events).toHaveLength(1);
     expect(events[0].key).toBe(99);
+  });
+});
+
+// ── Cross-tab watch (BroadcastChannel) ──────────────────
+
+describe('Watch — cross-tab via BroadcastChannel', () => {
+  const schema = (db) => {
+    db.createStore('items', { key: 'id' });
+  };
+
+  it('watcher on db2 receives events from db1 mutations', async () => {
+    const dbName = `crosstab-${Date.now()}`;
+
+    // Open two separate EasyDB instances pointing at the same IDB
+    const db1 = await EasyDB.open(dbName, { schema });
+    const db2 = await EasyDB.open(dbName, { schema });
+
+    const events = [];
+    const watchPromise = (async () => {
+      for await (const evt of db2.items.watch()) {
+        events.push(evt);
+        if (events.length >= 1) break;
+      }
+    })();
+
+    await wait();
+    await db1.items.put({ id: 1, value: 'from-tab-1' });
+    await watchPromise;
+
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe('put');
+    expect(events[0].key).toBe(1);
+
+    db1.close();
+    db2.close();
+    await EasyDB.destroy(dbName);
+  });
+
+  it('cross-tab events respect key filter', async () => {
+    const dbName = `crosstab-filter-${Date.now()}`;
+    const db1 = await EasyDB.open(dbName, { schema });
+    const db2 = await EasyDB.open(dbName, { schema });
+
+    const events = [];
+    const watchPromise = (async () => {
+      for await (const evt of db2.items.watch({ key: 2 })) {
+        events.push(evt);
+        if (events.length >= 1) break;
+      }
+    })();
+
+    await wait();
+    await db1.items.put({ id: 1, value: 'skip' });
+    await db1.items.put({ id: 2, value: 'match' });
+    await watchPromise;
+
+    expect(events).toHaveLength(1);
+    expect(events[0].key).toBe(2);
+
+    db1.close();
+    db2.close();
+    await EasyDB.destroy(dbName);
+  });
+
+  it('close() stops receiving cross-tab events', async () => {
+    const dbName = `crosstab-close-${Date.now()}`;
+    const db1 = await EasyDB.open(dbName, { schema });
+    const db2 = await EasyDB.open(dbName, { schema });
+
+    // Start watching, then close db2
+    const watcher = db2.items.watch();
+    const iter = watcher[Symbol.asyncIterator]();
+    await iter.return(); // clean up watcher
+    db2.close();
+
+    // Write from db1 — should not cause errors
+    await db1.items.put({ id: 1, value: 'after-close' });
+    await wait(50);
+
+    db1.close();
+    await EasyDB.destroy(dbName);
   });
 });
