@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.7.0 — 2026-02-28
+
+### New Features
+- **Adapter auto-detection** — When no `adapter` option is provided, EasyDB detects the runtime environment. Uses `IDBAdapter` when `indexedDB` is available (browser), falls back to `MemoryAdapter` otherwise (Node.js, SSR, serverless). D1/KV adapters still require explicit configuration.
+- **Vue composables** — `useQuery(query)` and `useRecord(store, key)` with Vue 3 `ref()` reactivity and auto-refresh via `watch()`. Supports reactive refs as query/key inputs. Vue 3 is an optional peer dependency.
+- **Svelte stores** — `queryStore(query)` and `recordStore(store, key)` implement the Svelte store contract (`subscribe`). Lazy watcher setup (only when subscribed). Works with Svelte 3/4/5.
+
+### Updated
+- ROADMAP.md updated to reflect Phase 0–4 completion status.
+- 289 tests across 12 test files (4 adapters + 3 framework integrations).
+- Sub-path exports: `@aspect/easydb/vue`, `@aspect/easydb/svelte`.
+- Optional peer dependencies for Vue (>=3) and Svelte (>=3).
+
 ## v0.6.0 — 2026-02-28
 
 ### New Features

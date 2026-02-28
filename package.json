@@ -1,6 +1,6 @@
 {
   "name": "@aspect/easydb",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Multi-backend storage with async/await, async iterables, and modern JavaScript — IndexedDB, Memory, D1/SQLite",
   "main": "src/easydb.js",
   "module": "src/easydb.js",
@@ -28,6 +28,14 @@
     "./react": {
       "import": "./src/react.js",
       "types": "./src/react.d.ts"
+    },
+    "./vue": {
+      "import": "./src/vue.js",
+      "types": "./src/vue.d.ts"
+    },
+    "./svelte": {
+      "import": "./src/svelte.js",
+      "types": "./src/svelte.d.ts"
     }
   },
   "files": [
@@ -75,10 +83,18 @@
     "node": ">=18"
   },
   "peerDependencies": {
-    "react": ">=18"
+    "react": ">=18",
+    "vue": ">=3",
+    "svelte": ">=3"
   },
   "peerDependenciesMeta": {
     "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    },
+    "svelte": {
       "optional": true
     }
   },

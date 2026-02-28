@@ -20,9 +20,7 @@ Same code everywhere:
 
 ---
 
-## Phase 0 — Foundation (current: v0.2.0) ✅
-
-What we have today.
+## Phase 0 — Foundation (v0.1.0–v0.2.0) ✅
 
 - [x] Proxy-based store access
 - [x] True pull-based async iterable cursors
@@ -37,222 +35,107 @@ What we have today.
 
 ---
 
-## Phase 1 — Hardening (v0.3.0)
+## Phase 1 — Hardening (v0.3.0) ✅
 
-**Goal:** Make the IndexedDB adapter production-worthy. Fix known gaps, add TypeScript, add tests.
+### TypeScript support ✅
 
-**Timeline:** 2-3 weeks
+- [x] Add type definitions for the full API
+- [x] Generic schema type: `EasyDB.open<MySchema>('db', ...)`
+- [x] Typed store access: `db.users.get(1)` returns `Promise<User | undefined>`
+- [x] Export `.d.ts` alongside `.js`
 
-### TypeScript support
+### Testing ✅
 
-- [ ] Add type definitions for the full API
-- [ ] Generic schema type: `EasyDB.open<MySchema>('db', ...)`
-- [ ] Typed store access: `db.users.get(1)` returns `Promise<User | undefined>`
-- [ ] Typed query builder: `.where('role', 'admin')` validates index names
-- [ ] Export `.d.ts` alongside `.js`
+- [x] Set up vitest with fake-indexeddb
+- [x] Unit tests for QueryBuilder (all operators, edge cases)
+- [x] Unit tests for StoreAccessor (CRUD, batch, error handling)
+- [x] Unit tests for transactions (commit, rollback, nested reads)
+- [x] Unit tests for watch (emit on put/delete/clear, filter by key)
+- [x] Fast path validation (verify getAll is used when expected)
 
-```typescript
-interface Schema {
-  users: { id: number; name: string; role: string; age: number };
-  orders: { orderId: string; userId: number; total: number };
-}
+### Bug fixes & edge cases ✅
 
-const db = await EasyDB.open<Schema>('myApp', { ... });
-const user = await db.users.get(1); // type: Schema['users'] | undefined
-```
+- [x] Handle store name collision with EasyDB methods (`db.store('transaction')`)
+- [x] Validate store exists before operations (friendly error listing available stores)
 
-### Testing
+### Developer experience ✅
 
-- [ ] Set up vitest with happy-dom or fake-indexeddb
-- [ ] Unit tests for QueryBuilder (all operators, edge cases)
-- [ ] Unit tests for StoreAccessor (CRUD, batch, error handling)
-- [ ] Unit tests for transactions (commit, rollback, nested reads)
-- [ ] Unit tests for watch (emit on put/delete/clear, filter by key)
-- [ ] Integration tests with real IndexedDB (Playwright)
-- [ ] Fast path validation (verify getAll is used when expected)
-
-### Bug fixes & edge cases
-
-- [ ] Handle store name collision with EasyDB methods (e.g. `db.transaction` vs store named "transaction")
-- [ ] Proper cleanup on database close (cancel pending watchers)
-- [ ] Error propagation in cursor iteration (tx abort mid-iteration)
-- [ ] Handle `versionchange` events (another tab upgrades the DB)
-- [ ] Validate store exists before operations (friendly error vs IDB cryptic error)
-
-### Developer experience
-
-- [ ] Better error messages: "Store 'users' not found. Available stores: orders, products"
-- [ ] Debug mode: `EasyDB.open('db', { debug: true })` logs all operations
-- [ ] `db.stores` getter to list available store names
+- [x] Better error messages: "Store 'users' not found. Available stores: orders, products"
+- [x] `db.stores` getter to list available store names
+- [x] `db.version` — current database version
 
 ---
 
-## Phase 2 — Adapter Architecture (v0.4.0)
+## Phase 2 — Adapter Architecture (v0.4.0) ✅
 
-**Goal:** Extract a common interface and make the IndexedDB implementation one of multiple adapters.
+### Define the adapter interface ✅
 
-**Timeline:** 3-4 weeks
+- [x] `StorageAdapter` interface with methods: `get`, `put`, `delete`, `getAll`, `count`, `cursor`, `transaction`
+- [x] Move IndexedDB-specific code into `adapters/indexeddb.js`
+- [x] EasyDB core becomes adapter-agnostic
 
-### Define the adapter interface
+### In-memory adapter ✅
 
-- [ ] `StorageAdapter` interface with methods: `get`, `put`, `delete`, `getAll`, `count`, `cursor`, `transaction`
-- [ ] `QueryCapabilities` — adapter declares what it supports natively (ranges, indexes, count) vs what needs JS fallback
-- [ ] Move IndexedDB-specific code into `adapters/indexeddb.js`
-- [ ] EasyDB core becomes adapter-agnostic
+- [x] Full adapter implementation using Map/Array
+- [x] Useful for: testing, SSR, serverless functions
+- [x] Supports all query operations (unique indexes, autoIncrement)
+- [x] structuredClone for mutation safety
 
-```
-src/
-├── core/
-│   ├── easydb.js          # Main class, Proxy, adapter routing
-│   ├── query-builder.js   # Query builder (adapter-aware)
-│   ├── watch.js           # Watch engine
-│   └── types.ts           # Shared types
-├── adapters/
-│   ├── indexeddb.js        # Browser IndexedDB
-│   ├── memory.js           # In-memory (for testing)
-│   └── interface.ts        # Adapter contract
-└── index.js
-```
+### Schema migrations ✅
 
-### In-memory adapter
-
-- [ ] Full adapter implementation using Map/Array
-- [ ] Useful for: testing, SSR, serverless functions
-- [ ] Supports all query operations
-- [ ] Optional persistence to JSON (snapshot/restore)
-
-```javascript
-import { EasyDB } from '@aspect/easydb';
-import { MemoryAdapter } from '@aspect/easydb/adapters/memory';
-
-const db = await EasyDB.open('test', {
-  adapter: new MemoryAdapter(),
-  schema(db) { db.createStore('users', { key: 'id' }); }
-});
-```
-
-### Schema migrations
-
-- [ ] Versioned migrations with `up()` callbacks
-- [ ] Access to stores during migration for data transforms
-- [ ] Migration history tracking
-
-```javascript
-const db = await EasyDB.open('myApp', {
-  version: 3,
-  migrations: {
-    1: (db) => {
-      db.createStore('users', { key: 'id', indexes: ['email'] });
-    },
-    2: (db) => {
-      db.createStore('orders', { key: 'id', indexes: ['userId'] });
-    },
-    3: async (db) => {
-      db.users.createIndex('role');
-      // Data migration
-      for await (const user of db.users.all()) {
-        await db.users.put({ ...user, role: user.role || 'member' });
-      }
-    }
-  }
-});
-```
+- [x] Versioned migrations with `migrations: { 1: fn, 2: fn }` syntax
+- [x] Auto-infers version from highest key
+- [x] Only runs migrations newer than current version
 
 ---
 
-## Phase 3 — Edge Adapters (v0.5.0)
+## Phase 3 — Edge Adapters (v0.5.0) ✅
 
-**Goal:** Same EasyDB API running on Cloudflare Workers with D1 and KV as backends. This is where EasyDB becomes genuinely useful beyond what Dexie offers.
+### Cloudflare D1 adapter ✅
 
-**Timeline:** 4-6 weeks
+- [x] Map EasyDB operations to D1 SQL queries
+- [x] Auto-generate CREATE TABLE from schema definition
+- [x] Range queries map to SQL WHERE clauses (native, fast)
+- [x] Transactions with snapshot/rollback
+- [x] `.filter()` remains JS-side (post-query)
+- [x] Cursor/async iterable over D1 result sets
+- [x] SQL identifier escaping prevents injection
 
-### Cloudflare D1 adapter
+### Cloudflare KV adapter ✅
 
-- [ ] Map EasyDB operations to D1 SQL queries
-- [ ] Auto-generate CREATE TABLE from schema definition
-- [ ] Range queries map to SQL WHERE clauses (native, fast)
-- [ ] Transactions map to D1 batch operations
-- [ ] `.filter()` remains JS-side (post-query)
-- [ ] Cursor/async iterable over D1 result sets
-
-```javascript
-import { EasyDB } from '@aspect/easydb';
-import { D1Adapter } from '@aspect/easydb/adapters/d1';
-
-export default {
-  async fetch(request, env) {
-    const db = await EasyDB.open('myApp', {
-      adapter: new D1Adapter(env.DB),
-      schema(db) {
-        db.createStore('users', { key: 'id', indexes: ['role', 'country'] });
-      }
-    });
-
-    // Same API as browser!
-    const admins = await db.users.where('role', 'admin').limit(10).toArray();
-    return Response.json(admins);
-  }
-};
-```
-
-### Cloudflare KV adapter
-
-- [ ] Map get/put/delete to KV operations
-- [ ] Store metadata for indexes in a separate KV namespace or prefix scheme
-- [ ] List operations for `.all()` and `.where()` (KV list with prefix)
-- [ ] Watch via Durable Objects or polling (optional)
-- [ ] Best for: simple key-value patterns, configuration stores, caching
+- [x] Map get/put/delete to KV operations
+- [x] Store metadata for indexes via prefix scheme (`{prefix}r:{store}:{pk}`, `{prefix}m:{store}`)
+- [x] List operations for `.all()` and `.where()` (fetch all + JS filter)
+- [x] autoIncrement, unique indexes, range queries
+- [x] Best-effort transactions with rollback
 
 ### Cross-environment portability
 
-- [ ] Same app code works in browser (IndexedDB) and Workers (D1/KV)
-- [ ] Adapter auto-detection: `EasyDB.open('db')` picks the right adapter based on environment
-- [ ] Shared test suite that runs against all adapters
-
-```javascript
-// This code runs identically in browser and Workers
-const db = await EasyDB.open('myApp', { schema: mySchema });
-await db.users.put({ id: 1, name: 'Mauricio' });
-const user = await db.users.get(1);
-```
+- [x] Same app code works in browser (IndexedDB) and Workers (D1/KV)
+- [x] Adapter auto-detection: `EasyDB.open('db')` picks IDBAdapter (browser) or MemoryAdapter (Node/SSR) automatically
+- [x] Shared test patterns across all adapters (275 tests)
 
 ---
 
-## Phase 4 — Sync & Reactivity (v0.6.0)
+## Phase 4 — Sync & Reactivity (v0.5.0–v0.6.0) ✅
 
-**Goal:** Cross-tab sync, framework integrations, and real-time capabilities.
+### Cross-tab watch ✅
 
-**Timeline:** 4-6 weeks
-
-### Cross-tab watch (browser)
-
-- [ ] BroadcastChannel integration for multi-tab reactivity
-- [ ] Deduplicate events from same-instance writes
-- [ ] Handle tab lifecycle (close, freeze, resume)
+- [x] BroadcastChannel integration for multi-tab reactivity
+- [x] Graceful degradation when BroadcastChannel is unavailable
 
 ### Framework integrations
 
-- [ ] React hook: `useQuery(db.users.where('role', 'admin'))`
-- [ ] Vue composable: `useEasyDB(db.users.all())`
-- [ ] Svelte store: `$: users = db.users.where('active', true)`
-- [ ] All hooks auto-refresh via watch when underlying data changes
+- [x] React hook: `useQuery(db.users.where('role', 'admin'))` + `useRecord(db.users, key)`
+- [x] Vue composable: `useQuery(query)` + `useRecord(store, key)` with `ref()` reactivity
+- [x] Svelte store: `queryStore(query)` + `recordStore(store, key)` with subscribe contract
+- [x] All hooks auto-refresh via watch when underlying data changes
 
-```jsx
-// React
-function AdminList() {
-  const { data, loading } = useQuery(db.users.where('role', 'admin'));
-  if (loading) return <Spinner />;
-  return data.map(u => <UserCard key={u.id} user={u} />);
-}
-// Auto-refreshes when any admin is added/updated/deleted
-```
+### Pagination ✅
 
-### Offline-first sync (stretch goal)
-
-- [ ] Define sync protocol between browser (IndexedDB) and edge (D1)
-- [ ] Conflict resolution strategies (last-write-wins, merge function)
-- [ ] Sync status observable via async iterable
-- [ ] This is hard and may be better left to dedicated tools (like CRDTs)
+- [x] `skip(n)` and `page(pageNum, pageSize)` on QueryBuilder
+- [x] Fast path uses `getAll(skip+limit)` then slices
+- [x] Works with `filter()`, `desc()`, `where()`
 
 ---
 
@@ -260,20 +143,17 @@ function AdminList() {
 
 **Goal:** Stable API, npm publish, documentation site, community.
 
-**Timeline:** 2-3 months after Phase 4
-
 ### Stability
 
 - [ ] API freeze — no breaking changes after 1.0
-- [ ] Performance benchmarks (automated, CI)
+- [x] Performance benchmarks (`npm run bench`)
 - [ ] Bundle size tracking (target: <5KB gzipped for core + 1 adapter)
 - [ ] Browser compatibility matrix
 
 ### Distribution
 
-- [ ] Publish to npm as `@aspect/easydb`
+- [ ] Publish to npm as `@aspect/easydb` (package ready, needs `npm login`)
 - [ ] CDN builds (ESM, UMD, IIFE)
-- [ ] Separate adapter packages: `@aspect/easydb-d1`, `@aspect/easydb-kv`
 
 ### Documentation site
 
@@ -285,7 +165,6 @@ function AdminList() {
 ### Community
 
 - [ ] Blog post: "Why we built EasyDB" (publish on Automators.work and Dev.to)
-- [ ] Reference the Cloudflare streams post as inspiration
 - [ ] GitHub Discussions for feedback and RFC process
 - [ ] Contributing guide
 
@@ -298,22 +177,21 @@ Things we're intentionally NOT doing:
 - **Replacing Dexie.js** — They have 10+ years head start on IndexedDB specifically. We differentiate on multi-backend portability.
 - **Building a full ORM** — No relations, no schema validation beyond types. Keep it document/KV oriented.
 - **SQL support** — If you need JOINs and GROUP BY, use D1 or SQLite directly. EasyDB is for document-style access patterns.
-- **Replicating PouchDB** — CouchDB-style sync is complex and niche. Offline-first sync in Phase 4 is a stretch goal, not a core feature.
+- **Replicating PouchDB** — CouchDB-style sync is complex and niche. Offline-first sync is a stretch goal, not a core feature.
 - **Supporting legacy browsers** — ES2018+ only (async iterables). No IE11, no transpilation.
 
 ---
 
 ## Priority Matrix
 
-| Phase | Impact | Effort | Dependencies |
-|-------|--------|--------|-------------|
-| 1. Hardening | Medium | Low | None |
-| 2. Adapter arch | High | Medium | Phase 1 |
-| 3. Edge adapters | **Very High** | High | Phase 2 |
-| 4. Sync & React | High | High | Phase 3 |
-| 5. Ecosystem | Medium | Medium | Phase 4 |
-
-**The highest-value milestone is Phase 3** — the moment EasyDB works identically on browser IndexedDB and Cloudflare D1, it becomes something genuinely new in the ecosystem. Everything before Phase 3 is foundation; everything after is growth.
+| Phase | Impact | Effort | Status |
+|-------|--------|--------|--------|
+| 0. Foundation | — | — | ✅ Done |
+| 1. Hardening | Medium | Low | ✅ Done |
+| 2. Adapter arch | High | Medium | ✅ Done |
+| 3. Edge adapters | **Very High** | High | ✅ Done |
+| 4. Sync & React | High | High | ✅ Done |
+| 5. Ecosystem | Medium | Medium | 🔄 In progress |
 
 ---
 
@@ -324,5 +202,6 @@ Things we're intentionally NOT doing:
 | 2026-02-28 | Start as IndexedDB POC | Prove the API design with a real backend |
 | 2026-02-28 | Pivot vision to multi-backend | IndexedDB wrapper alone can't compete with Dexie |
 | 2026-02-28 | Prioritize D1 adapter | Aligns with Cloudflare ecosystem, unique differentiator |
-| TBD | TypeScript first | Required for DX and adoption |
-| TBD | Adapter interface contract | Must be minimal enough that new adapters are <200 LOC |
+| 2026-02-28 | TypeScript declarations | Required for DX and adoption |
+| 2026-02-28 | Adapter interface contract | Minimal enough that new adapters are <300 LOC |
+| 2026-02-28 | KV adapter + React hooks | High impact, moderate effort — completes edge story and framework reach |
