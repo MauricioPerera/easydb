@@ -24,6 +24,10 @@
     },
     "./adapters/kv": {
       "import": "./src/adapters/kv.js"
+    },
+    "./react": {
+      "import": "./src/react.js",
+      "types": "./src/react.d.ts"
     }
   },
   "files": [
@@ -69,6 +73,14 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "better-sqlite3": "^12.6.2",
