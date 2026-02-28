@@ -14,30 +14,39 @@
       "default": "./src/easydb.js"
     },
     "./adapters/indexeddb": {
+      "types": "./src/adapters/indexeddb.d.ts",
       "import": "./src/adapters/indexeddb.js"
     },
     "./adapters/memory": {
+      "types": "./src/adapters/memory.d.ts",
       "import": "./src/adapters/memory.js"
     },
     "./adapters/d1": {
+      "types": "./src/adapters/d1.d.ts",
       "import": "./src/adapters/d1.js"
     },
     "./adapters/kv": {
+      "types": "./src/adapters/kv.d.ts",
       "import": "./src/adapters/kv.js"
     },
     "./adapters/localstorage": {
+      "types": "./src/adapters/localstorage.d.ts",
       "import": "./src/adapters/localstorage.js"
     },
     "./adapters/postgres": {
+      "types": "./src/adapters/postgres.d.ts",
       "import": "./src/adapters/postgres.js"
     },
     "./adapters/redis": {
+      "types": "./src/adapters/redis.d.ts",
       "import": "./src/adapters/redis.js"
     },
     "./adapters/turso": {
+      "types": "./src/adapters/turso.d.ts",
       "import": "./src/adapters/turso.js"
     },
     "./adapters/sqlite": {
+      "types": "./src/adapters/sqlite.d.ts",
       "import": "./src/adapters/sqlite.js"
     },
     "./react": {
