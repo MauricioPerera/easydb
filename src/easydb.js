@@ -22,15 +22,42 @@ export { IDBAdapter } from './adapters/indexeddb.js';
 export { MemoryAdapter } from './adapters/memory.js';
 export { D1Adapter } from './adapters/d1.js';
 
-// ── Watch engine ─────────────────────────────────────────
+// ── Watch engine (with cross-tab BroadcastChannel) ──────
 
 const _watchers = new Map(); // dbName -> Map<storeName, Set<callback>>
+const _channels = new Map(); // dbName -> BroadcastChannel
+
+const _hasBroadcast = typeof BroadcastChannel !== 'undefined';
+
+function _ensureChannel(dbName) {
+  if (!_hasBroadcast || _channels.has(dbName)) return;
+  const ch = new BroadcastChannel(`easydb:${dbName}`);
+  ch.onmessage = (e) => {
+    const { storeName, type, key, value } = e.data;
+    const dbMap = _watchers.get(dbName);
+    if (!dbMap) return;
+    const set = dbMap.get(storeName);
+    if (set) for (const cb of set) cb({ type, key, value });
+  };
+  _channels.set(dbName, ch);
+}
+
+function _closeChannel(dbName) {
+  const ch = _channels.get(dbName);
+  if (ch) { ch.close(); _channels.delete(dbName); }
+}
 
 function _notify(dbName, storeName, type, key, value) {
   const dbMap = _watchers.get(dbName);
   if (!dbMap) return;
   const set = dbMap.get(storeName);
   if (set) for (const cb of set) cb({ type, key, value });
+
+  // Broadcast to other tabs
+  const ch = _channels.get(dbName);
+  if (ch) {
+    try { ch.postMessage({ storeName, type, key, value }); } catch (_) {}
+  }
 }
 
 // ── QueryBuilder ─────────────────────────────────────────
@@ -282,6 +309,7 @@ export class StoreAccessor {
         };
 
         if (!_watchers.has(dbName)) _watchers.set(dbName, new Map());
+        _ensureChannel(dbName);
         const dbMap = _watchers.get(dbName);
         if (!dbMap.has(storeName)) dbMap.set(storeName, new Set());
         dbMap.get(storeName).add(cb);
@@ -298,7 +326,7 @@ export class StoreAccessor {
             if (dbMap) {
               const set = dbMap.get(storeName);
               if (set) { set.delete(cb); if (!set.size) dbMap.delete(storeName); }
-              if (!dbMap.size) _watchers.delete(dbName);
+              if (!dbMap.size) { _watchers.delete(dbName); _closeChannel(dbName); }
             }
             if (waiting) { waiting({ value: undefined, done: true }); waiting = null; }
             return Promise.resolve({ value: undefined, done: true });
@@ -344,11 +372,28 @@ export class EasyDB {
 
   close() {
     _watchers.delete(this._conn.name);
+    _closeChannel(this._conn.name);
     this._conn.close();
   }
 
   static async open(name, options = {}) {
     const adapter = options.adapter ?? new IDBAdapter();
+
+    // Convert migrations map to a schema callback
+    if (options.migrations && !options.schema) {
+      const migrations = options.migrations;
+      const versions = Object.keys(migrations).map(Number).sort((a, b) => a - b);
+      if (!options.version) options = { ...options, version: versions[versions.length - 1] };
+      options = {
+        ...options,
+        schema(builder, oldVersion) {
+          for (const v of versions) {
+            if (v > oldVersion) migrations[v](builder, oldVersion);
+          }
+        }
+      };
+    }
+
     const conn = await adapter.open(name, options);
     return new EasyDB(conn, adapter);
   }

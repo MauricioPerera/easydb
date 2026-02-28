@@ -166,6 +166,19 @@ export interface OpenOptions {
   version?: number;
   /** Schema definition callback, called during upgrade. */
   schema?: (db: SchemaBuilder, oldVersion: number) => void;
+  /**
+   * Versioned migrations map. Each key is a version number, and the value
+   * is a function that runs when upgrading past that version.
+   * Auto-infers `version` from the highest key if not specified.
+   * Cannot be used together with `schema`.
+   *
+   * @example
+   * migrations: {
+   *   1: (s) => { s.createStore('users', { key: 'id' }); },
+   *   2: (s) => { s.createStore('orders', { key: 'orderId' }); },
+   * }
+   */
+  migrations?: Record<number, (db: SchemaBuilder, oldVersion: number) => void>;
   /** Storage adapter. Defaults to IDBAdapter. */
   adapter?: Adapter;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { EasyDB } from '../src/easydb.js';
+import { EasyDB, MemoryAdapter } from '../src/easydb.js';
 import { createTestDB, destroyTestDB } from './helpers.js';
 
 describe('EasyDB — open / close / destroy', () => {
@@ -120,5 +120,119 @@ describe('EasyDB — Proxy store access', () => {
     const ordersAccessor = db.orders;
     expect(usersAccessor._store).toBe('users');
     expect(ordersAccessor._store).toBe('orders');
+  });
+});
+
+// ── Migrations API ─────────────────────────────────────────
+
+describe('EasyDB — migrations', () => {
+  it('creates stores from migrations map (IDB)', async () => {
+    const dbName = `mig-idb-${Date.now()}`;
+    const db = await EasyDB.open(dbName, {
+      migrations: {
+        1: (s) => { s.createStore('users', { key: 'id' }); },
+        2: (s) => { s.createStore('orders', { key: 'orderId' }); },
+      }
+    });
+
+    expect(db.version).toBe(2);
+    expect(db.stores).toContain('users');
+    expect(db.stores).toContain('orders');
+
+    db.close();
+    await EasyDB.destroy(dbName);
+  });
+
+  it('creates stores from migrations map (Memory)', async () => {
+    const adapter = new MemoryAdapter();
+    const db = await EasyDB.open('mig-mem', {
+      adapter,
+      migrations: {
+        1: (s) => { s.createStore('users', { key: 'id' }); },
+        2: (s) => { s.createStore('logs', { key: 'id', autoIncrement: true }); },
+      }
+    });
+
+    expect(db.version).toBe(2);
+    expect(db.stores).toContain('users');
+    expect(db.stores).toContain('logs');
+  });
+
+  it('runs only new migrations on version upgrade (Memory)', async () => {
+    const adapter = new MemoryAdapter();
+    const ran = [];
+
+    // Open at v1
+    const db1 = await EasyDB.open('mig-upgrade', {
+      adapter,
+      migrations: {
+        1: (s) => { ran.push(1); s.createStore('users', { key: 'id' }); },
+      }
+    });
+    expect(db1.version).toBe(1);
+    expect(ran).toEqual([1]);
+
+    // Re-open at v2 — only migration 2 should run
+    const db2 = await EasyDB.open('mig-upgrade', {
+      adapter,
+      migrations: {
+        1: (s) => { ran.push(1); s.createStore('users', { key: 'id' }); },
+        2: (s) => { ran.push(2); s.createStore('orders', { key: 'orderId' }); },
+      }
+    });
+    expect(db2.version).toBe(2);
+    expect(ran).toEqual([1, 2]); // 1 ran first time, 2 ran on upgrade
+    expect(db2.stores).toContain('users');
+    expect(db2.stores).toContain('orders');
+  });
+
+  it('auto-infers version from highest migration key', async () => {
+    const adapter = new MemoryAdapter();
+    const db = await EasyDB.open('mig-auto-ver', {
+      adapter,
+      migrations: {
+        1: (s) => { s.createStore('a', { key: 'id' }); },
+        5: (s) => { s.createStore('b', { key: 'id' }); },
+        3: (s) => { s.createStore('c', { key: 'id' }); },
+      }
+    });
+    expect(db.version).toBe(5);
+  });
+
+  it('explicit version overrides auto-inferred version', async () => {
+    const adapter = new MemoryAdapter();
+    const db = await EasyDB.open('mig-explicit-ver', {
+      adapter,
+      version: 10,
+      migrations: {
+        1: (s) => { s.createStore('items', { key: 'id' }); },
+      }
+    });
+    expect(db.version).toBe(10);
+  });
+
+  it('preserves data across migrations (Memory)', async () => {
+    const adapter = new MemoryAdapter();
+
+    // V1: create users and add data
+    const db1 = await EasyDB.open('mig-data', {
+      adapter,
+      migrations: {
+        1: (s) => { s.createStore('users', { key: 'id' }); },
+      }
+    });
+    await db1.users.put({ id: 1, name: 'Alice' });
+
+    // V2: add orders store — users data should persist
+    const db2 = await EasyDB.open('mig-data', {
+      adapter,
+      migrations: {
+        1: (s) => { s.createStore('users', { key: 'id' }); },
+        2: (s) => { s.createStore('orders', { key: 'orderId' }); },
+      }
+    });
+    const user = await db2.users.get(1);
+    expect(user.name).toBe('Alice');
+    expect(db2.stores).toContain('orders');
   });
 });
