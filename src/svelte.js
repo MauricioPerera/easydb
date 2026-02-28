@@ -4,7 +4,7 @@
  * Provides readable stores that auto-update when data changes.
  *
  * Usage:
- *   import { queryStore, recordStore } from '@aspect/easydb/svelte';
+ *   import { queryStore, recordStore } from '@rckflr/easydb/svelte';
  *
  *   const admins = queryStore(db.users.where('role', 'admin'));
  *   // In template: {#each $admins.data as user}...{/each}

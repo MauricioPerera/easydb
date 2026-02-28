@@ -34,7 +34,7 @@ And the same API works across **browsers** (IndexedDB), **tests/SSR** (Memory), 
 ## Installation
 
 ```bash
-npm install @aspect/easydb
+npm install @rckflr/easydb
 ```
 
 ## Quick Start
@@ -42,7 +42,7 @@ npm install @aspect/easydb
 ### Browser (IndexedDB — default)
 
 ```javascript
-import { EasyDB } from '@aspect/easydb';
+import { EasyDB } from '@rckflr/easydb';
 
 const db = await EasyDB.open('myApp', {
   schema(s) {
@@ -79,7 +79,7 @@ for await (const user of db.users.all()) {
 ### Testing / SSR (Memory)
 
 ```javascript
-import { EasyDB, MemoryAdapter } from '@aspect/easydb';
+import { EasyDB, MemoryAdapter } from '@rckflr/easydb';
 
 const db = await EasyDB.open('test', {
   adapter: new MemoryAdapter(),
@@ -93,7 +93,7 @@ const db = await EasyDB.open('test', {
 ### Cloudflare Workers (D1/SQLite)
 
 ```javascript
-import { EasyDB, D1Adapter } from '@aspect/easydb';
+import { EasyDB, D1Adapter } from '@rckflr/easydb';
 
 export default {
   async fetch(request, env) {
@@ -277,9 +277,9 @@ EasyDB uses a pluggable adapter architecture. All adapters implement the same in
 
 | Adapter | Import | Use case | Persistence |
 |---------|--------|----------|-------------|
-| `IDBAdapter` | `@aspect/easydb` | Browser apps | Persistent (IndexedDB) |
-| `MemoryAdapter` | `@aspect/easydb` | Testing, SSR, prototyping | In-memory only |
-| `D1Adapter` | `@aspect/easydb` | Cloudflare Workers | Persistent (D1/SQLite) |
+| `IDBAdapter` | `@rckflr/easydb` | Browser apps | Persistent (IndexedDB) |
+| `MemoryAdapter` | `@rckflr/easydb` | Testing, SSR, prototyping | In-memory only |
+| `D1Adapter` | `@rckflr/easydb` | Cloudflare Workers | Persistent (D1/SQLite) |
 
 ### Writing a custom adapter
 

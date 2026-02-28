@@ -5,7 +5,7 @@
  * automatic reactivity via watch().
  *
  * Usage:
- *   import { useQuery } from '@aspect/easydb/vue';
+ *   import { useQuery } from '@rckflr/easydb/vue';
  *
  *   const { data, loading, error } = useQuery(db.users.where('role', 'admin'));
  *

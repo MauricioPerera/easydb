@@ -5,7 +5,7 @@
  * automatic re-rendering on mutations via watch().
  *
  * Usage:
- *   import { useQuery } from '@aspect/easydb/react';
+ *   import { useQuery } from '@rckflr/easydb/react';
  *
  *   function AdminList({ db }) {
  *     const { data, loading, error } = useQuery(db.users.where('role', 'admin'));
