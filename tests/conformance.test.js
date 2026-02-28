@@ -431,5 +431,107 @@ for (const adapterDef of adapters) {
         }
       });
     });
+
+    // ── Watch / Reactivity ────────────────────────────────
+    describe('watch', () => {
+      it('emits put events', async () => {
+        const events = [];
+        const watcher = db.users.watch()[Symbol.asyncIterator]();
+
+        await db.users.put({ id: 1, name: 'Alice', role: 'admin', email: 'a@t.com' });
+
+        const { value } = await watcher.next();
+        events.push(value);
+
+        expect(events).toHaveLength(1);
+        expect(events[0].type).toBe('put');
+        expect(events[0].key).toBe(1);
+
+        if (watcher.return) watcher.return();
+      });
+
+      it('emits delete events', async () => {
+        await db.users.put({ id: 1, name: 'Alice', role: 'admin', email: 'a@t.com' });
+
+        const watcher = db.users.watch()[Symbol.asyncIterator]();
+        await db.users.delete(1);
+
+        const { value } = await watcher.next();
+        expect(value.type).toBe('delete');
+        expect(value.key).toBe(1);
+
+        if (watcher.return) watcher.return();
+      });
+
+      it('emits clear events', async () => {
+        await db.users.put({ id: 1, name: 'Alice', role: 'admin', email: 'a@t.com' });
+
+        const watcher = db.users.watch()[Symbol.asyncIterator]();
+        await db.users.clear();
+
+        const { value } = await watcher.next();
+        expect(value.type).toBe('clear');
+
+        if (watcher.return) watcher.return();
+      });
+
+      it('filters by key when specified', async () => {
+        const watcher = db.users.watch({ key: 1 })[Symbol.asyncIterator]();
+
+        await db.users.put({ id: 2, name: 'Bob', role: 'member', email: 'b@t.com' });
+        await db.users.put({ id: 1, name: 'Alice', role: 'admin', email: 'a@t.com' });
+
+        const { value } = await watcher.next();
+        expect(value.key).toBe(1);
+
+        if (watcher.return) watcher.return();
+      });
+
+      it('stops emitting after return()', async () => {
+        const watcher = db.users.watch()[Symbol.asyncIterator]();
+
+        await db.users.put({ id: 1, name: 'Alice', role: 'admin', email: 'a@t.com' });
+        await watcher.next();
+        await watcher.return();
+
+        // No more events should be emitted (watcher is closed)
+        await db.users.put({ id: 2, name: 'Bob', role: 'member', email: 'b@t.com' });
+        // If we got here without hanging, the watcher was properly closed
+      });
+    });
+
+    // ── Migrations ────────────────────────────────────────
+    describe('migrations', () => {
+      it('creates stores from migrations map', async () => {
+        const name2 = `mig-${adapterDef.name}-${Math.random().toString(36).slice(2)}`;
+        adapterDef.cleanup();
+        const db2 = await EasyDB.open(name2, {
+          adapter: adapterDef.create(),
+          migrations: {
+            1: (s) => { s.createStore('users', { key: 'id' }); },
+            2: (s) => { s.createStore('orders', { key: 'orderId' }); },
+          },
+        });
+        expect(db2.version).toBe(2);
+        expect(db2.stores).toContain('users');
+        expect(db2.stores).toContain('orders');
+        db2.close();
+      });
+
+      it('auto-infers version from highest migration key', async () => {
+        const name2 = `mig-ver-${adapterDef.name}-${Math.random().toString(36).slice(2)}`;
+        adapterDef.cleanup();
+        const db2 = await EasyDB.open(name2, {
+          adapter: adapterDef.create(),
+          migrations: {
+            1: (s) => { s.createStore('a', { key: 'id' }); },
+            5: (s) => { s.createStore('b', { key: 'id' }); },
+            3: (s) => { s.createStore('c', { key: 'id' }); },
+          },
+        });
+        expect(db2.version).toBe(5);
+        db2.close();
+      });
+    });
   });
 }
