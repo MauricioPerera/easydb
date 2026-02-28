@@ -20,9 +20,9 @@ Same code everywhere:
 
 ---
 
-## Phase 0 — Foundation (current: v0.2.0) ✅
+## Phase 0 — Foundation (v0.2.0) ✅
 
-What we have today.
+Initial proof of concept.
 
 - [x] Proxy-based store access
 - [x] True pull-based async iterable cursors
@@ -37,9 +37,9 @@ What we have today.
 
 ---
 
-## Phase 1 — Hardening (v0.3.0)
+## Phase 1 — Hardening (v0.3.0) ✅
 
-**Goal:** Make the IndexedDB adapter production-worthy. Fix known gaps, add TypeScript, add tests.
+**Completed.** TypeScript declarations, friendly errors, CI, watcher security fix.
 
 **Timeline:** 2-3 weeks
 
@@ -87,9 +87,9 @@ const user = await db.users.get(1); // type: Schema['users'] | undefined
 
 ---
 
-## Phase 2 — Adapter Architecture (v0.4.0)
+## Phase 2 — Adapter Architecture (v0.4.0) ✅
 
-**Goal:** Extract a common interface and make the IndexedDB implementation one of multiple adapters.
+**Completed.** Core refactored to adapter-agnostic interface. IDBAdapter + MemoryAdapter shipping.
 
 **Timeline:** 3-4 weeks
 
@@ -160,9 +160,9 @@ const db = await EasyDB.open('myApp', {
 
 ---
 
-## Phase 3 — Edge Adapters (v0.5.0)
+## Phase 3 — Edge Adapters (v0.5.0) ✅
 
-**Goal:** Same EasyDB API running on Cloudflare Workers with D1 and KV as backends. This is where EasyDB becomes genuinely useful beyond what Dexie offers.
+**Completed.** D1Adapter maps EasyDB to Cloudflare D1/SQLite. Same API across browser, edge, and test.
 
 **Timeline:** 4-6 weeks
 
@@ -218,9 +218,9 @@ const user = await db.users.get(1);
 
 ---
 
-## Phase 4 — Sync & Reactivity (v0.6.0)
+## Phase 4 — Sync & Reactivity (v0.6.0) 🔄
 
-**Goal:** Cross-tab sync, framework integrations, and real-time capabilities.
+**Partially completed.** Cross-tab watch via BroadcastChannel shipped in v0.5.0. Migrations API shipped. Framework integrations and offline-first sync remain.
 
 **Timeline:** 4-6 weeks
 
@@ -305,15 +305,16 @@ Things we're intentionally NOT doing:
 
 ## Priority Matrix
 
-| Phase | Impact | Effort | Dependencies |
-|-------|--------|--------|-------------|
-| 1. Hardening | Medium | Low | None |
-| 2. Adapter arch | High | Medium | Phase 1 |
-| 3. Edge adapters | **Very High** | High | Phase 2 |
-| 4. Sync & React | High | High | Phase 3 |
-| 5. Ecosystem | Medium | Medium | Phase 4 |
+| Phase | Status | Impact | Effort |
+|-------|--------|--------|--------|
+| 0. Foundation | ✅ Done | — | — |
+| 1. Hardening | ✅ Done | — | — |
+| 2. Adapter arch | ✅ Done | — | — |
+| 3. Edge adapters | ✅ Done | — | — |
+| 4. Sync & React | 🔄 Partial | High | High |
+| 5. Ecosystem | ⏳ Next | Medium | Medium |
 
-**The highest-value milestone is Phase 3** — the moment EasyDB works identically on browser IndexedDB and Cloudflare D1, it becomes something genuinely new in the ecosystem. Everything before Phase 3 is foundation; everything after is growth.
+**Next milestone:** Framework integrations (React/Vue/Svelte hooks) and npm publish for v1.0.
 
 ---
 
@@ -323,6 +324,10 @@ Things we're intentionally NOT doing:
 |------|----------|-----------|
 | 2026-02-28 | Start as IndexedDB POC | Prove the API design with a real backend |
 | 2026-02-28 | Pivot vision to multi-backend | IndexedDB wrapper alone can't compete with Dexie |
-| 2026-02-28 | Prioritize D1 adapter | Aligns with Cloudflare ecosystem, unique differentiator |
-| TBD | TypeScript first | Required for DX and adoption |
-| TBD | Adapter interface contract | Must be minimal enough that new adapters are <200 LOC |
+| 2026-02-28 | TypeScript declarations (not generics) | Ship DX value fast, generics come later |
+| 2026-02-28 | Nested Map for watchers | Fix DoS vulnerability from prefix-matching close() |
+| 2026-02-28 | Adapter interface via connection objects | Clean separation, adapters stay thin (~250 LOC each) |
+| 2026-02-28 | D1 adapter with JSON _value column | Document-style storage over SQL, schema in _easydb_meta |
+| 2026-02-28 | BroadcastChannel for cross-tab watch | Graceful degradation, no extra deps |
+| 2026-02-28 | Declarative migrations API | Ergonomic alternative to raw schema callback |
+| 2026-02-28 | skip() / page() pagination | Common need, trivial to implement correctly |

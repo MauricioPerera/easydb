@@ -79,15 +79,36 @@ await db.transaction(['store'], async (tx) => {
 
 ## What This Is Not
 
-- **Not a Dexie.js replacement** — Dexie has 10+ years of battle-testing, advanced live queries, and comprehensive edge case handling.
-- **Not an ORM** — No schema validation, no relations, no migrations beyond basic `createStore`.
-- **Not production-ready** — This is a proof of concept to demonstrate that modern JS primitives can dramatically simplify IndexedDB usage.
-- **Not a new storage engine** — EasyDB is a thin wrapper. All data is stored in IndexedDB.
+- **Not a Dexie.js replacement** — Dexie has 10+ years of battle-testing on IndexedDB specifically. EasyDB differentiates on multi-backend portability.
+- **Not an ORM** — No relations, no schema validation beyond types. Document/KV oriented.
+- **Not a new storage engine** — EasyDB is a thin wrapper. All data lives in the underlying storage (IndexedDB, D1, Memory).
 
-## Future Directions (if this becomes a real project)
+## Current Architecture
 
-1. **TypeScript generics** — `EasyDB.open<MySchema>(...)` for type-safe store access
-2. **Cross-tab watch** — BroadcastChannel integration for multi-tab reactivity
-3. **Backend adapters** — Same API surface over D1 (Cloudflare), SQLite (Node.js), KV (edge)
-4. **Migrations** — Declarative schema versioning with data migration callbacks
-5. **Batch cursors** — Yield `Uint8Array[]`-style batches for high-throughput scenarios (Snell's batched chunks concept applied to records)
+```
+Your code (async/await)
+        │
+   EasyDB API (Proxy + AsyncIterable)
+        │
+   ┌────┼──────────────────────────┐
+   │    │                          │
+Tx Proxy   QueryBuilder (pull)    Watch Engine
+                                  (EventTarget + BroadcastChannel)
+   │    │                          │
+   └────┼──────────────────────────┘
+        │
+   Adapter Connection Interface
+        │
+   ┌────┼──────────┬──────────────┐
+   │              │              │
+IDBAdapter   MemoryAdapter   D1Adapter
+(IndexedDB)  (Map/Array)    (SQL/JSON)
+```
+
+## Future Directions
+
+1. **TypeScript generics** — `EasyDB.open<MySchema>(...)` for type-safe store and index access
+2. **Framework hooks** — `useQuery()` for React, `useEasyDB()` for Vue, Svelte stores
+3. **More adapters** — Turso, PlanetScale, KV, Redis, localStorage
+4. **Offline-first sync** — Sync protocol between browser (IDB) and edge (D1)
+5. **Batch cursors** — Yield record batches for high-throughput scenarios
