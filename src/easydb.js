@@ -82,13 +82,19 @@ export class QueryBuilder {
 
   // ── JS-side compound filter ──
 
-  filter(fn) { const q = this._clone(); q._filterFn = fn; return q; }
+  filter(fn) {
+    const q = this._clone();
+    const prev = q._filterFn;
+    q._filterFn = prev ? (v) => prev(v) && fn(v) : fn;
+    return q;
+  }
 
   // ── True pull-based async iterator ──
 
   [Symbol.asyncIterator]() {
     const self = this;
     let resolve = null;
+    let reject = null;
     let done = false;
     let started = false;
     let request;
@@ -101,20 +107,23 @@ export class QueryBuilder {
       const source = self._index ? store.index(self._index) : store;
       request = source.openCursor(self._range, self._dir);
       request.onsuccess = () => {
-        if (resolve) { const r = resolve; resolve = null; r(request.result); }
+        if (resolve) { const r = resolve; resolve = null; reject = null; r(request.result); }
       };
       request.onerror = () => {
         done = true;
-        if (resolve) { const r = resolve; resolve = null; r(null); }
+        if (reject) { const rj = reject; resolve = null; reject = null; rj(request.error); }
       };
     }
 
     function waitCursor() {
-      return new Promise(r => {
-        resolve = r;
-        if (request && request.readyState === 'done' && resolve) {
+      return new Promise((res, rej) => {
+        resolve = res;
+        reject = rej;
+        if (request && request.readyState === 'done') {
           resolve = null;
-          r(request.result);
+          reject = null;
+          if (request.error) { done = true; rej(request.error); }
+          else { res(request.result); }
         }
       });
     }
@@ -151,16 +160,20 @@ export class QueryBuilder {
   // ── Consumption methods with fast paths ──
 
   async toArray() {
-    // FAST PATH: no JS filter + no limit → use getAll with keyRange
-    if (!this._filterFn && this._limit == null) {
+    // FAST PATH: no JS filter → use getAll(keyRange, count)
+    // getAll(range, count) returns first N in ascending order,
+    // so limit fast path only works for forward direction.
+    if (!this._filterFn && (this._limit == null || this._dir === 'next')) {
       const tx = this._idb.transaction(this._store, 'readonly');
       const store = tx.objectStore(this._store);
       const source = this._index ? store.index(this._index) : store;
-      const results = await promisifyReq(source.getAll(this._range));
+      const results = await promisifyReq(
+        this._limit != null ? source.getAll(this._range, this._limit) : source.getAll(this._range)
+      );
       if (this._dir === 'prev') results.reverse();
       return results;
     }
-    // SLOW PATH: iterate with pull cursor
+    // SLOW PATH: iterate with pull cursor (JS filter or desc+limit)
     const results = [];
     for await (const item of this) results.push(item);
     return results;
@@ -215,9 +228,11 @@ export class StoreAccessor {
   }
 
   async put(value) {
-    const result = await this._run('readwrite', s => s.put(value));
-    const keyPath = this._idb.transaction(this._store, 'readonly')
-      .objectStore(this._store).keyPath;
+    const tx = this._idb.transaction(this._store, 'readwrite');
+    const store = tx.objectStore(this._store);
+    const keyPath = store.keyPath;
+    const result = await promisifyReq(store.put(value));
+    await promisifyTx(tx);
     _notify(this._idb.name, this._store, 'put', keyPath ? value[keyPath] : result, value);
     return result;
   }
@@ -237,10 +252,9 @@ export class StoreAccessor {
   async putMany(items) {
     const tx = this._idb.transaction(this._store, 'readwrite');
     const store = tx.objectStore(this._store);
+    const keyPath = store.keyPath;
     for (const item of items) store.put(item);
     await promisifyTx(tx);
-    const keyPath = this._idb.transaction(this._store, 'readonly')
-      .objectStore(this._store).keyPath;
     for (const item of items) {
       _notify(this._idb.name, this._store, 'put', keyPath ? item[keyPath] : undefined, item);
     }
@@ -339,11 +353,17 @@ export class EasyDB {
     }
   }
 
-  close() { this._idb.close(); }
+  close() {
+    const prefix = this._idb.name + ':';
+    for (const key of _watchers.keys()) {
+      if (key.startsWith(prefix)) _watchers.delete(key);
+    }
+    this._idb.close();
+  }
 
   static async open(name, options = {}) {
     return new Promise((resolve, reject) => {
-      const version = options.version || 1;
+      const version = options.version ?? 1;
       const request = indexedDB.open(name, version);
       request.onupgradeneeded = (event) => {
         const db = request.result;
