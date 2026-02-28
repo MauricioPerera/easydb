@@ -41,6 +41,8 @@ const BUNDLES = [
   { entry: 'src/solid.js', name: 'easydb-solid', external: ['solid-js'] },
   { entry: 'src/preact.js', name: 'easydb-preact', external: ['preact/hooks'] },
   { entry: 'src/lit.js', name: 'easydb-lit', external: ['lit'] },
+  // Sync engine
+  { entry: 'src/sync.js', name: 'easydb-sync' },
 ];
 
 const FORMATS = ['esm', 'iife'];

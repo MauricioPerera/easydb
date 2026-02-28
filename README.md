@@ -26,6 +26,7 @@ And the same API works across **browsers** (IndexedDB), **Node.js** (SQLite, Pos
 - **Transactions** — multi-store with auto-rollback on throw
 - **Watch** — `for await (const change of db.users.watch())` reactive observation
 - **Cross-tab sync** — watch events broadcast across browser tabs via BroadcastChannel
+- **Cross-adapter sync** — push, pull, or bidirectional replication between any two adapters
 - **Migrations** — versioned schema migrations with `migrations: { 1: fn, 2: fn }`
 - **Fast paths** — `toArray()` uses `getAll()` when possible; `count()` uses native count
 - **Batch operations** — `putMany()`, `getMany()`
@@ -314,6 +315,54 @@ await db.users.put({ id: 1, name: 'Updated in tab 2' });
 // Tab 1's watcher fires with the put event
 ```
 
+## Sync
+
+Synchronize data between any two EasyDB instances (e.g. browser ↔ server, IndexedDB ↔ PostgreSQL):
+
+```javascript
+import { SyncEngine } from '@rckflr/easydb/sync';
+
+const local  = await EasyDB.open('app', { adapter: idbAdapter, schema });
+const remote = await EasyDB.open('app', { adapter: pgAdapter, schema });
+
+const sync = new SyncEngine(local, remote, {
+  stores: ['users', 'orders'],
+  direction: 'bidirectional',   // 'push' | 'pull' | 'bidirectional'
+  conflict: 'last-write-wins',  // 'source-wins' | 'target-wins' | 'last-write-wins' | 'manual'
+  timestampField: 'updatedAt',
+  onSync(event) { console.log(event.store, event.type, event.key); },
+});
+
+// Real-time sync (watch-based for push, polling for pull)
+sync.start();
+
+// Pause/resume
+sync.pause();                // events queue up
+await sync.resume();         // flush queued events
+
+// One-time full sync
+await sync.syncAll();        // reconcile all stores
+await sync.syncStore('users'); // single store
+
+sync.stop();                 // stop and clean up
+```
+
+### Custom conflict resolution
+
+```javascript
+const sync = new SyncEngine(local, remote, {
+  stores: ['users'],
+  conflict: 'manual',
+  onConflict(store, key, sourceVal, targetVal) {
+    // Merge strategy: keep source name, keep higher score
+    return {
+      ...sourceVal,
+      score: Math.max(sourceVal.score, targetVal.score),
+    };
+  },
+});
+```
+
 ## Transactions
 
 Multi-store transactions with automatic rollback on error:
@@ -522,7 +571,7 @@ const admins = await db.users.where('role', 'admin').toArray();  // MySchema['us
 git clone https://github.com/MauricioPerera/easydb.git
 cd easydb
 npm install
-npm test            # Run all 662 tests
+npm test            # Run all 696 tests
 npm run build       # Generate CDN bundles (dist/)
 npm run bench       # Run benchmarks
 npm run metrics     # Show LOC and gzip sizes
