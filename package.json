@@ -1,7 +1,7 @@
 {
   "name": "@rckflr/easydb",
   "version": "1.0.1",
-  "description": "Multi-backend storage with async/await, async iterables, and modern JavaScript — IndexedDB, Memory, D1/SQLite",
+  "description": "Multi-backend storage with async/await, async iterables, and modern JavaScript — IndexedDB, Memory, D1/SQLite, PostgreSQL, Redis, Turso, localStorage",
   "main": "src/easydb.js",
   "module": "src/easydb.js",
   "types": "src/easydb.d.ts",
@@ -25,6 +25,18 @@
     "./adapters/kv": {
       "import": "./src/adapters/kv.js"
     },
+    "./adapters/localstorage": {
+      "import": "./src/adapters/localstorage.js"
+    },
+    "./adapters/postgres": {
+      "import": "./src/adapters/postgres.js"
+    },
+    "./adapters/redis": {
+      "import": "./src/adapters/redis.js"
+    },
+    "./adapters/turso": {
+      "import": "./src/adapters/turso.js"
+    },
     "./react": {
       "import": "./src/react.js",
       "types": "./src/react.d.ts"
@@ -36,6 +48,22 @@
     "./svelte": {
       "import": "./src/svelte.js",
       "types": "./src/svelte.d.ts"
+    },
+    "./angular": {
+      "import": "./src/angular.js",
+      "types": "./src/angular.d.ts"
+    },
+    "./solid": {
+      "import": "./src/solid.js",
+      "types": "./src/solid.d.ts"
+    },
+    "./preact": {
+      "import": "./src/preact.js",
+      "types": "./src/preact.d.ts"
+    },
+    "./lit": {
+      "import": "./src/lit.js",
+      "types": "./src/lit.d.ts"
     }
   },
   "files": [
@@ -69,7 +97,18 @@
     "d1-adapter",
     "cloudflare-workers",
     "sqlite",
-    "multi-backend"
+    "multi-backend",
+    "localstorage",
+    "postgres",
+    "postgresql",
+    "redis",
+    "turso",
+    "libsql",
+    "angular",
+    "solid-js",
+    "preact",
+    "lit",
+    "web-components"
   ],
   "author": "Mauricio Perera <https://automators.work>",
   "license": "MIT",
@@ -87,7 +126,11 @@
   "peerDependencies": {
     "react": ">=18",
     "svelte": ">=3",
-    "vue": ">=3"
+    "vue": ">=3",
+    "@angular/core": ">=16",
+    "solid-js": ">=1",
+    "preact": ">=10",
+    "lit": ">=2"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -97,6 +140,18 @@
       "optional": true
     },
     "svelte": {
+      "optional": true
+    },
+    "@angular/core": {
+      "optional": true
+    },
+    "solid-js": {
+      "optional": true
+    },
+    "preact": {
+      "optional": true
+    },
+    "lit": {
       "optional": true
     }
   },

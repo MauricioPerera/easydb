@@ -73,6 +73,34 @@ export declare class KVAdapter implements Adapter {
   destroy(name: string): Promise<void>;
 }
 
+/** localStorage adapter for simple browser persistence. */
+export declare class LocalStorageAdapter implements Adapter {
+  constructor(opts?: { prefix?: string });
+  open(name: string, options?: OpenOptions): Promise<AdapterConnection>;
+  destroy(name: string): Promise<void>;
+}
+
+/** PostgreSQL adapter via node-postgres or Neon serverless. */
+export declare class PostgresAdapter implements Adapter {
+  constructor(client: any, opts?: { schema?: string });
+  open(name: string, options?: OpenOptions): Promise<AdapterConnection>;
+  destroy(name: string): Promise<void>;
+}
+
+/** Redis adapter via ioredis or @upstash/redis. */
+export declare class RedisAdapter implements Adapter {
+  constructor(redis: any, opts?: { prefix?: string });
+  open(name: string, options?: OpenOptions): Promise<AdapterConnection>;
+  destroy(name: string): Promise<void>;
+}
+
+/** Turso/libSQL adapter via @libsql/client. */
+export declare class TursoAdapter implements Adapter {
+  constructor(client: any);
+  open(name: string, options?: OpenOptions): Promise<AdapterConnection>;
+  destroy(name: string): Promise<void>;
+}
+
 // ── QueryBuilder ─────────────────────────────────────────
 
 export interface QueryBuilder<T> extends AsyncIterable<T> {
