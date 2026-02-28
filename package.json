@@ -1,13 +1,15 @@
 {
   "name": "@aspect/easydb",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "IndexedDB reimagined with async/await, async iterables, and modern JavaScript primitives",
   "main": "src/easydb.js",
   "module": "src/easydb.js",
+  "types": "src/easydb.d.ts",
   "type": "module",
   "exports": {
     ".": {
       "import": "./src/easydb.js",
+      "types": "./src/easydb.d.ts",
       "default": "./src/easydb.js"
     }
   },
@@ -20,6 +22,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "metrics": "echo \"Raw: $(wc -c < src/easydb.js) bytes | Gzip: $(gzip -c src/easydb.js | wc -c) bytes | LOC: $(wc -l < src/easydb.js)\"",
     "demo": "open demo/index.html"
   },
   "keywords": [
