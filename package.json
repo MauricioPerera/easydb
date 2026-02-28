@@ -37,6 +37,9 @@
     "./adapters/turso": {
       "import": "./src/adapters/turso.js"
     },
+    "./adapters/sqlite": {
+      "import": "./src/adapters/sqlite.js"
+    },
     "./react": {
       "import": "./src/react.js",
       "types": "./src/react.d.ts"
