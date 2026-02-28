@@ -1,0 +1,360 @@
+/**
+ * Redis Adapter for EasyDB
+ *
+ * Stores data in Redis using hash sets and sorted sets.
+ * Supports both ioredis and @upstash/redis (serverless).
+ *
+ * Best for:
+ * - Session stores, caches, real-time data
+ * - High-throughput key-value operations
+ * - Shared state across serverless functions
+ *
+ * Limitations:
+ * - No native secondary indexes — queries fetch all and filter in JS
+ * - No true multi-key transactions — best-effort with rollback
+ * - All values serialized as JSON strings
+ *
+ * Usage:
+ *   import EasyDB from '@rckflr/easydb';
+ *   import { RedisAdapter } from '@rckflr/easydb/adapters/redis';
+ *   import Redis from 'ioredis';
+ *
+ *   const redis = new Redis(process.env.REDIS_URL);
+ *   const db = await EasyDB.open('app', {
+ *     adapter: new RedisAdapter(redis),
+ *     schema(s) {
+ *       s.createStore('sessions', { key: 'id' });
+ *       s.createStore('cache', { key: 'key' });
+ *     }
+ *   });
+ */
+
+// ── RedisConnection ────────────────────────────────────────
+
+class RedisConnection {
+  constructor(name, redis, stores, version, prefix) {
+    this._name = name;
+    this._redis = redis;
+    this._stores = stores;
+    this._version = version;
+    this._prefix = prefix;
+  }
+
+  get name() { return this._name; }
+  get version() { return this._version; }
+  get storeNames() { return Array.from(this._stores.keys()); }
+
+  hasStore(name) { return this._stores.has(name); }
+
+  getKeyPath(storeName) {
+    const meta = this._stores.get(storeName);
+    return meta ? meta.keyPath : null;
+  }
+
+  close() { /* no-op — caller manages redis connection */ }
+
+  // ── Key helpers ──
+
+  _hkey(store) { return `${this._prefix}h:${store}`; }
+  _mkey() { return `${this._prefix}meta`; }
+
+  _meta(storeName) {
+    const meta = this._stores.get(storeName);
+    if (!meta) throw new Error(`EasyDB: Store "${storeName}" not found`);
+    return meta;
+  }
+
+  // ── Read ops ──
+
+  async get(storeName, key) {
+    this._meta(storeName);
+    const val = await this._redis.hget(this._hkey(storeName), String(key));
+    return val != null ? JSON.parse(val) : undefined;
+  }
+
+  async getAll(storeName, opts = {}) {
+    const meta = this._meta(storeName);
+    const all = await this._redis.hgetall(this._hkey(storeName));
+    let results = Object.values(all || {}).map(v => JSON.parse(v));
+
+    if (opts.range) {
+      const field = opts.index || meta.keyPath;
+      results = results.filter(v => this._matchesRange(v[field], opts.range));
+    }
+
+    const sortField = opts.index || meta.keyPath;
+    results.sort((a, b) => a[sortField] < b[sortField] ? -1 : a[sortField] > b[sortField] ? 1 : 0);
+
+    if (opts.limit != null) results = results.slice(0, opts.limit);
+
+    return results;
+  }
+
+  async count(storeName, opts = {}) {
+    if (!opts.range && !opts.index) {
+      this._meta(storeName);
+      const len = await this._redis.hlen(this._hkey(storeName));
+      return len;
+    }
+    const results = await this.getAll(storeName, opts);
+    return results.length;
+  }
+
+  async getMany(storeName, keys) {
+    this._meta(storeName);
+    const hkey = this._hkey(storeName);
+    const vals = await this._redis.hmget(hkey, ...keys.map(String));
+    return vals.map(v => v != null ? JSON.parse(v) : undefined);
+  }
+
+  // ── Write ops ──
+
+  async put(storeName, value) {
+    const meta = this._meta(storeName);
+    let key;
+
+    if (meta.keyPath) {
+      key = value[meta.keyPath];
+      if (key == null && meta.autoIncrement) {
+        key = meta.nextKey++;
+        value = { ...value, [meta.keyPath]: key };
+        await this._saveMeta();
+      }
+    } else if (meta.autoIncrement) {
+      key = meta.nextKey++;
+      await this._saveMeta();
+    } else {
+      throw new Error('EasyDB: Cannot put without keyPath or autoIncrement');
+    }
+
+    if (meta.autoIncrement && typeof key === 'number' && key >= meta.nextKey) {
+      meta.nextKey = key + 1;
+      await this._saveMeta();
+    }
+
+    // Enforce unique indexes
+    if (meta.indexes.length > 0) {
+      const uniqueIndexes = meta.indexes.filter(i => i.unique);
+      if (uniqueIndexes.length > 0) {
+        const all = await this._fetchAll(storeName);
+        for (const idx of uniqueIndexes) {
+          if (value[idx.name] != null) {
+            const conflict = all.find(v =>
+              v[meta.keyPath] !== key && v[idx.name] === value[idx.name]
+            );
+            if (conflict) {
+              throw new DOMException(
+                'Key already exists in the object store.',
+                'ConstraintError'
+              );
+            }
+          }
+        }
+      }
+    }
+
+    await this._redis.hset(this._hkey(storeName), String(key), JSON.stringify(value));
+    return key;
+  }
+
+  async delete(storeName, key) {
+    this._meta(storeName);
+    await this._redis.hdel(this._hkey(storeName), String(key));
+  }
+
+  async clear(storeName) {
+    this._meta(storeName);
+    await this._redis.del(this._hkey(storeName));
+  }
+
+  async putMany(storeName, items) {
+    const keys = [];
+    for (const item of items) {
+      keys.push(await this.put(storeName, item));
+    }
+    return keys;
+  }
+
+  // ── Cursor (async generator) ──
+
+  async *cursor(storeName, opts = {}) {
+    const meta = this._meta(storeName);
+    let results = await this._fetchAll(storeName);
+
+    if (opts.range) {
+      const field = opts.index || meta.keyPath;
+      results = results.filter(v => this._matchesRange(v[field], opts.range));
+    }
+
+    const sortField = opts.index || meta.keyPath;
+    results.sort((a, b) => a[sortField] < b[sortField] ? -1 : a[sortField] > b[sortField] ? 1 : 0);
+
+    if (opts.direction === 'prev') results.reverse();
+
+    for (const val of results) {
+      yield val;
+    }
+  }
+
+  // ── Multi-store transaction (best-effort) ──
+
+  async transaction(storeNames, fn) {
+    // Snapshot for rollback
+    const snapshots = new Map();
+    for (const name of storeNames) {
+      snapshots.set(name, await this._fetchAll(name));
+    }
+
+    const self = this;
+    const proxy = new Proxy({}, {
+      get(_, storeName) {
+        return {
+          get: (key) => self.get(storeName, key),
+          put: (val) => self.put(storeName, val),
+          delete: (key) => self.delete(storeName, key),
+          getAll: () => self.getAll(storeName),
+          count: () => self.count(storeName),
+        };
+      }
+    });
+
+    try {
+      await fn(proxy);
+    } catch (err) {
+      // Rollback: clear and re-insert
+      for (const [name, snapshot] of snapshots) {
+        const meta = this._meta(name);
+        await this._redis.del(this._hkey(name));
+        if (snapshot.length > 0) {
+          const args = [];
+          for (const item of snapshot) {
+            args.push(String(item[meta.keyPath]), JSON.stringify(item));
+          }
+          await this._redis.hset(this._hkey(name), ...args);
+        }
+      }
+      throw err;
+    }
+  }
+
+  // ── Internal helpers ──
+
+  async _fetchAll(storeName) {
+    const all = await this._redis.hgetall(this._hkey(storeName));
+    return Object.values(all || {}).map(v => JSON.parse(v));
+  }
+
+  async _saveMeta() {
+    const obj = {};
+    for (const [name, meta] of this._stores) {
+      obj[name] = meta;
+    }
+    await this._redis.set(this._mkey(), JSON.stringify(obj));
+  }
+
+  _matchesRange(val, range) {
+    if (!range) return true;
+    if ('lower' in range) {
+      if (range.lowerOpen ? val <= range.lower : val < range.lower) return false;
+    }
+    if ('upper' in range) {
+      if (range.upperOpen ? val >= range.upper : val > range.upper) return false;
+    }
+    return true;
+  }
+}
+
+// ── RedisAdapter ──────────────────────────────────────────
+
+export class RedisAdapter {
+  /**
+   * @param {Redis|UpstashRedis} redis - ioredis or @upstash/redis instance
+   * @param {object} [opts]
+   * @param {string} [opts.prefix='easydb:'] - Key prefix to avoid collisions
+   */
+  constructor(redis, opts = {}) {
+    this._redis = redis;
+    this._prefix = opts.prefix ?? 'easydb:';
+  }
+
+  async open(name, options = {}) {
+    const version = options.version ?? 1;
+    const prefix = `${this._prefix}${name}:`;
+    const metaKey = `${prefix}meta`;
+    const versionKey = `${prefix}_version`;
+
+    const currentVersion = JSON.parse(await this._redis.get(versionKey) || '0');
+    const stores = new Map();
+
+    if (currentVersion < version && options.schema) {
+      const storeDefs = [];
+
+      options.schema({
+        createStore(storeName, opts = {}) {
+          storeDefs.push({ storeName, opts });
+        },
+        getStore() { return null; }
+      }, currentVersion);
+
+      // Load existing meta
+      const existingRaw = await this._redis.get(metaKey);
+      const existingMeta = existingRaw ? JSON.parse(existingRaw) : {};
+
+      for (const { storeName, opts } of storeDefs) {
+        const indexes = [];
+        if (opts.indexes) {
+          for (const idx of opts.indexes) {
+            const n = typeof idx === 'string' ? idx : idx.name;
+            const unique = typeof idx === 'string' ? false : (idx.unique || false);
+            indexes.push({ name: n, unique });
+          }
+        }
+
+        const meta = {
+          keyPath: opts.key || null,
+          autoIncrement: opts.autoIncrement || false,
+          indexes,
+          nextKey: existingMeta[storeName]?.nextKey || 1,
+        };
+
+        stores.set(storeName, meta);
+      }
+
+      // Save meta
+      const metaObj = {};
+      for (const [n, m] of stores) metaObj[n] = m;
+      await this._redis.set(metaKey, JSON.stringify(metaObj));
+      await this._redis.set(versionKey, JSON.stringify(version));
+    }
+
+    // Load metadata if not set from schema
+    if (stores.size === 0) {
+      const raw = await this._redis.get(metaKey);
+      if (raw) {
+        const existing = JSON.parse(raw);
+        for (const [storeName, meta] of Object.entries(existing)) {
+          stores.set(storeName, meta);
+        }
+      }
+    }
+
+    return new RedisConnection(name, this._redis, stores, version, prefix);
+  }
+
+  async destroy(name) {
+    const prefix = `${this._prefix}${name}:`;
+    const metaKey = `${prefix}meta`;
+    const versionKey = `${prefix}_version`;
+
+    const raw = await this._redis.get(metaKey);
+    if (raw) {
+      const meta = JSON.parse(raw);
+      for (const storeName of Object.keys(meta)) {
+        await this._redis.del(`${prefix}h:${storeName}`);
+      }
+    }
+
+    await this._redis.del(metaKey);
+    await this._redis.del(versionKey);
+  }
+}

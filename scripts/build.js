@@ -17,6 +17,9 @@ const stubServerAdapters = {
     const stubPath = resolve('scripts/empty-adapter.js');
     b.onResolve({ filter: /adapters\/d1\.js$/ }, () => ({ path: stubPath }));
     b.onResolve({ filter: /adapters\/kv\.js$/ }, () => ({ path: stubPath }));
+    b.onResolve({ filter: /adapters\/postgres\.js$/ }, () => ({ path: stubPath }));
+    b.onResolve({ filter: /adapters\/redis\.js$/ }, () => ({ path: stubPath }));
+    b.onResolve({ filter: /adapters\/turso\.js$/ }, () => ({ path: stubPath }));
   },
 };
 
@@ -33,6 +36,10 @@ const BUNDLES = [
   { entry: 'src/react.js', name: 'easydb-react', external: ['react'] },
   { entry: 'src/vue.js', name: 'easydb-vue', external: ['vue'] },
   { entry: 'src/svelte.js', name: 'easydb-svelte', external: ['svelte/store'] },
+  { entry: 'src/angular.js', name: 'easydb-angular', external: ['@angular/core'] },
+  { entry: 'src/solid.js', name: 'easydb-solid', external: ['solid-js'] },
+  { entry: 'src/preact.js', name: 'easydb-preact', external: ['preact/hooks'] },
+  { entry: 'src/lit.js', name: 'easydb-lit', external: ['lit'] },
 ];
 
 const FORMATS = ['esm', 'iife'];
