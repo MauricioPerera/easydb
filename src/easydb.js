@@ -30,11 +30,12 @@ function promisifyTx(tx) {
 
 // ── Watch engine (per-instance EventTarget) ──────────────
 
-const _watchers = new Map(); // "dbName:storeName" -> Set<callback>
+const _watchers = new Map(); // dbName -> Map<storeName, Set<callback>>
 
 function _notify(dbName, storeName, type, key, value) {
-  const id = `${dbName}:${storeName}`;
-  const set = _watchers.get(id);
+  const dbMap = _watchers.get(dbName);
+  if (!dbMap) return;
+  const set = dbMap.get(storeName);
   if (set) for (const cb of set) cb({ type, key, value });
 }
 
@@ -308,7 +309,6 @@ export class StoreAccessor {
         const queue = [];
         let waiting = null;
         let done = false;
-        const id = `${dbName}:${storeName}`;
 
         const cb = (evt) => {
           if (keyFilter != null && evt.key !== keyFilter) return;
@@ -316,8 +316,10 @@ export class StoreAccessor {
           else queue.push(evt);
         };
 
-        if (!_watchers.has(id)) _watchers.set(id, new Set());
-        _watchers.get(id).add(cb);
+        if (!_watchers.has(dbName)) _watchers.set(dbName, new Map());
+        const dbMap = _watchers.get(dbName);
+        if (!dbMap.has(storeName)) dbMap.set(storeName, new Set());
+        dbMap.get(storeName).add(cb);
 
         return {
           next() {
@@ -327,8 +329,12 @@ export class StoreAccessor {
           },
           return() {
             done = true;
-            const set = _watchers.get(id);
-            if (set) { set.delete(cb); if (!set.size) _watchers.delete(id); }
+            const dbMap = _watchers.get(dbName);
+            if (dbMap) {
+              const set = dbMap.get(storeName);
+              if (set) { set.delete(cb); if (!set.size) dbMap.delete(storeName); }
+              if (!dbMap.size) _watchers.delete(dbName);
+            }
             if (waiting) { waiting({ value: undefined, done: true }); waiting = null; }
             return Promise.resolve({ value: undefined, done: true });
           },
@@ -386,10 +392,7 @@ export class EasyDB {
   }
 
   close() {
-    const prefix = this._idb.name + ':';
-    for (const key of _watchers.keys()) {
-      if (key.startsWith(prefix)) _watchers.delete(key);
-    }
+    _watchers.delete(this._idb.name);
     this._idb.close();
   }
 
