@@ -1,6 +1,6 @@
 # EasyDB
 
-> Multi-backend storage with `async/await`, async iterables, and modern JavaScript — IndexedDB, Memory, D1/SQLite.
+> Multi-backend storage with `async/await`, async iterables, and modern JavaScript — IndexedDB, SQLite, PostgreSQL, Redis, Turso, D1, KV, localStorage.
 
 Inspired by Cloudflare's ["We deserve a better streams API"](https://blog.cloudflare.com/a-better-web-streams-api/) philosophy — applying pull semantics, zero ceremony, and native fast paths to client-side and edge storage.
 
@@ -12,11 +12,12 @@ IndexedDB was designed in 2011 with DOM events. Reading a single record requires
 const user = await db.users.get(42);
 ```
 
-And the same API works across **browsers** (IndexedDB), **tests/SSR** (Memory), and **Cloudflare Workers** (D1/SQLite) — swap the adapter, keep your code.
+And the same API works across **browsers** (IndexedDB), **Node.js** (SQLite, PostgreSQL, Redis), **edge** (D1, KV, Turso), and **tests** (Memory) — swap the adapter, keep your code.
 
 ## Features
 
-- **Multi-backend** — IndexedDB, Memory, and Cloudflare D1/SQLite via pluggable adapters
+- **9 storage adapters** — IndexedDB, Memory, SQLite, PostgreSQL, Redis, Turso, D1, KV, localStorage
+- **7 framework integrations** — React, Vue, Svelte, Angular, Solid.js, Preact, Lit
 - **~400 LOC core, zero dependencies** — thin ergonomic wrapper, not a framework
 - **Proxy-based store access** — `db.users`, `db.orders` without registration
 - **Async iterables** — `for await (const user of db.users.all())` with true pull-based cursors
@@ -28,8 +29,8 @@ And the same API works across **browsers** (IndexedDB), **tests/SSR** (Memory), 
 - **Migrations** — versioned schema migrations with `migrations: { 1: fn, 2: fn }`
 - **Fast paths** — `toArray()` uses `getAll()` when possible; `count()` uses native count
 - **Batch operations** — `putMany()`, `getMany()`
-- **TypeScript** — full type declarations included
-- **~4.9KB gzip** (browser) / **~6.4KB gzip** (Workers)
+- **TypeScript** — full type declarations with generic schema support
+- **~4.4KB gzip** (browser bundle)
 
 ## Installation
 
@@ -76,21 +77,68 @@ for await (const user of db.users.all()) {
 }
 ```
 
-### Testing / SSR (Memory)
+### Node.js (SQLite)
 
 ```javascript
-import { EasyDB, MemoryAdapter } from '@rckflr/easydb';
+import { EasyDB } from '@rckflr/easydb';
+import { SQLiteAdapter } from '@rckflr/easydb/adapters/sqlite';
 
-const db = await EasyDB.open('test', {
-  adapter: new MemoryAdapter(),
+const db = await EasyDB.open('app', {
+  adapter: new SQLiteAdapter('./my-data.db'),  // or ':memory:' for testing
   schema(s) {
-    s.createStore('users', { key: 'id' });
+    s.createStore('users', { key: 'id', indexes: ['email'] });
+    s.createStore('posts', { key: 'id', autoIncrement: true });
   }
 });
-// Same API — no browser, no polyfill needed
+// Same API — full ACID transactions via better-sqlite3
 ```
 
-### Cloudflare Workers (D1/SQLite)
+### Node.js (PostgreSQL)
+
+```javascript
+import { PostgresAdapter } from '@rckflr/easydb/adapters/postgres';
+import { Pool } from 'pg';
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const db = await EasyDB.open('app', {
+  adapter: new PostgresAdapter(pool),
+  schema(s) {
+    s.createStore('users', { key: 'id', indexes: ['role'] });
+  }
+});
+```
+
+### Node.js (Redis)
+
+```javascript
+import { RedisAdapter } from '@rckflr/easydb/adapters/redis';
+import Redis from 'ioredis';
+
+const redis = new Redis(process.env.REDIS_URL);
+const db = await EasyDB.open('app', {
+  adapter: new RedisAdapter(redis),
+  schema(s) {
+    s.createStore('sessions', { key: 'id' });
+  }
+});
+```
+
+### Edge (Turso / libSQL)
+
+```javascript
+import { TursoAdapter } from '@rckflr/easydb/adapters/turso';
+import { createClient } from '@libsql/client';
+
+const client = createClient({ url: process.env.TURSO_URL, authToken: process.env.TURSO_TOKEN });
+const db = await EasyDB.open('app', {
+  adapter: new TursoAdapter(client),
+  schema(s) {
+    s.createStore('users', { key: 'id', indexes: ['email'] });
+  }
+});
+```
+
+### Cloudflare Workers (D1)
 
 ```javascript
 import { EasyDB, D1Adapter } from '@rckflr/easydb';
@@ -107,6 +155,108 @@ export default {
     return Response.json(user);
   }
 };
+```
+
+### Testing / SSR (Memory)
+
+```javascript
+import { EasyDB, MemoryAdapter } from '@rckflr/easydb';
+
+const db = await EasyDB.open('test', {
+  adapter: new MemoryAdapter(),
+  schema(s) {
+    s.createStore('users', { key: 'id' });
+  }
+});
+// Same API — no browser, no polyfill needed
+```
+
+## Framework Integrations
+
+EasyDB provides reactive bindings for 7 UI frameworks. All integrations auto-refresh when data changes via `watch()`.
+
+### React
+
+```javascript
+import { useQuery, useRecord } from '@rckflr/easydb/react';
+
+function UserList({ db }) {
+  const { data, loading, error } = useQuery(db.users);
+  if (loading) return <p>Loading...</p>;
+  return data.map(u => <p key={u.id}>{u.name}</p>);
+}
+
+function UserProfile({ db, userId }) {
+  const { data: user } = useRecord(db.users, userId);
+  return <h1>{user?.name}</h1>;
+}
+```
+
+### Vue 3
+
+```javascript
+import { useQuery, useRecord } from '@rckflr/easydb/vue';
+
+// In <script setup>:
+const { data, loading, error } = useQuery(db.users);
+const admins = useQuery(db.users.where('role', 'admin'));
+
+// Reactive key (re-fetches when ref changes):
+const userId = ref(1);
+const { data: user } = useRecord(db.users, userId);
+```
+
+### Svelte
+
+```javascript
+import { queryStore, recordStore } from '@rckflr/easydb/svelte';
+
+const users = queryStore(db.users);
+// {#if $users.loading} ... {:else} {#each $users.data as user} ... {/each} {/if}
+```
+
+### Angular 16+
+
+```typescript
+import { createQuery, createRecord } from '@rckflr/easydb/angular';
+
+@Component({ template: `@for (user of users.data(); track user.id) { ... }` })
+class UserList {
+  users = createQuery(db.users);          // Signal-based
+  admins = createQuery(() => db.users.where('role', 'admin'));  // Reactive
+}
+```
+
+### Solid.js
+
+```javascript
+import { createQuery, createRecord } from '@rckflr/easydb/solid';
+
+function UserList() {
+  const users = createQuery(db.users);
+  return <For each={users.data()}>{u => <p>{u.name}</p>}</For>;
+}
+```
+
+### Preact
+
+```javascript
+import { useQuery, useRecord } from '@rckflr/easydb/preact';
+// Same API as React — drop-in replacement
+```
+
+### Lit
+
+```javascript
+import { EasyDBQueryController, EasyDBRecordController } from '@rckflr/easydb/lit';
+
+class UserList extends LitElement {
+  _users = new EasyDBQueryController(this, db.users);
+  render() {
+    const { data, loading } = this._users;
+    return loading ? html`<p>Loading...</p>` : html`<ul>${data.map(u => html`<li>${u.name}</li>`)}</ul>`;
+  }
+}
 ```
 
 ## Migrations
@@ -132,17 +282,6 @@ const db = await EasyDB.open('myApp', {
 // Re-opening at a higher version only runs migrations > current version
 ```
 
-You can also set an explicit version:
-
-```javascript
-const db = await EasyDB.open('myApp', {
-  version: 10,
-  migrations: {
-    1: (s) => { s.createStore('users', { key: 'id' }); },
-  }
-});
-```
-
 ## Watch
 
 Observe mutations reactively with async iterables:
@@ -162,7 +301,7 @@ for await (const event of db.users.watch({ key: 42 })) {
 
 ### Cross-tab sync
 
-In browsers with `BroadcastChannel` support, watch events automatically propagate across tabs. No configuration needed — if another tab calls `db.users.put(...)`, your watchers fire.
+In browsers with `BroadcastChannel` support, watch events automatically propagate across tabs:
 
 ```javascript
 // Tab 1
@@ -246,40 +385,29 @@ Chainable, immutable query builder. Implements `Symbol.asyncIterator`.
 | `.between(lo, hi)` | Inclusive range |
 | `.filter(fn)` | JS-side predicate (composable — multiple are ANDed) |
 | `.limit(n)` | Max results |
+| `.skip(n)` | Skip first N results |
+| `.page(num, size)` | Pagination (1-indexed) |
 | `.desc()` | Reverse order |
 | `.asc()` | Forward order (default) |
 | `.toArray()` | Collect all results |
 | `.first()` | Get first result |
 | `.count()` | Count matching results |
 
-**Fast paths:**
-- `toArray()` without `.filter()` uses `getAll(range, limit)` — no cursor overhead
-- `count()` without `.filter()` uses native count
-
-### Schema builder
-
-```javascript
-schema(builder, oldVersion) {
-  builder.createStore('users', {
-    key: 'id',              // keyPath (primary key)
-    autoIncrement: false,   // auto-generate keys
-    indexes: [
-      'role',                          // simple index
-      { name: 'email', unique: true }  // unique index
-    ]
-  });
-}
-```
-
 ## Adapters
 
 EasyDB uses a pluggable adapter architecture. All adapters implement the same interface, so your application code stays identical.
 
-| Adapter | Import | Use case | Persistence |
-|---------|--------|----------|-------------|
-| `IDBAdapter` | `@rckflr/easydb` | Browser apps | Persistent (IndexedDB) |
-| `MemoryAdapter` | `@rckflr/easydb` | Testing, SSR, prototyping | In-memory only |
-| `D1Adapter` | `@rckflr/easydb` | Cloudflare Workers | Persistent (D1/SQLite) |
+| Adapter | Import | Runtime | Persistence |
+|---------|--------|---------|-------------|
+| `IDBAdapter` | `@rckflr/easydb` | Browser | IndexedDB |
+| `MemoryAdapter` | `@rckflr/easydb` | Anywhere | In-memory |
+| `SQLiteAdapter` | `@rckflr/easydb/adapters/sqlite` | Node.js | File / in-memory |
+| `PostgresAdapter` | `@rckflr/easydb/adapters/postgres` | Node.js | PostgreSQL |
+| `RedisAdapter` | `@rckflr/easydb/adapters/redis` | Node.js | Redis |
+| `TursoAdapter` | `@rckflr/easydb/adapters/turso` | Node.js / Edge | Turso / libSQL |
+| `D1Adapter` | `@rckflr/easydb` | Cloudflare Workers | D1 (SQLite) |
+| `KVAdapter` | `@rckflr/easydb` | Cloudflare Workers | KV |
+| `LocalStorageAdapter` | `@rckflr/easydb/adapters/localstorage` | Browser | localStorage |
 
 ### Writing a custom adapter
 
@@ -318,53 +446,68 @@ rollback)   + range          BroadcastChannel)
         |
    Adapter Interface
         |
-   ┌────┼──────────┐
-   |    |          |
-  IDB  Memory     D1
-(browser) (test)  (Workers)
+   ┌──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┐
+  IDB  Memory  SQLite  PG   Redis Turso  D1    KV  localStorage
 ```
 
 ## Bundle Size
 
 | CDN Bundle | Raw | Gzip |
 |------------|-----|------|
-| `easydb.mjs.js` (ESM) | 13.7 KB | **4.4 KB** |
-| `easydb.iife.js` | 14.1 KB | 4.6 KB |
-| `easydb.umd.js` | 14.4 KB | 4.7 KB |
+| `easydb.mjs.js` (ESM) | 13.9 KB | **4.4 KB** |
+| `easydb.iife.js` | 14.4 KB | 4.6 KB |
+| `easydb.umd.js` | 14.7 KB | 4.8 KB |
+
+Framework integrations: ~0.6–0.7 KB gzip each.
 
 Build CDN bundles: `npm run build`
+
+## TypeScript
+
+EasyDB ships with full type declarations. Use generic schemas for type-safe store access:
+
+```typescript
+interface MySchema {
+  users: { id: number; name: string; role: string };
+  orders: { orderId: string; total: number };
+}
+
+const db = await EasyDB.open<MySchema>('app', { ... });
+const user = await db.users.get(1);        // MySchema['users'] | undefined
+const admins = await db.users.where('role', 'admin').toArray();  // MySchema['users'][]
+```
 
 ## Known Limitations
 
 ### IndexedDB adapter
 - **Transactions auto-commit** when there are no pending IDB requests in the event loop. Avoid `await fetch()` inside a transaction.
-- **No compound indexes** — IndexedDB doesn't support `WHERE a = 1 AND b = 2` natively. Use `.filter()` for JS-side compound predicates.
+- **No compound indexes** — use `.filter()` for JS-side compound predicates.
 
-### D1 adapter
-- **Transactions are emulated** — D1 doesn't support multi-statement transactions natively. EasyDB snapshots tables before executing and restores on error. This is safe for single-worker concurrency but not for multi-worker concurrent writes.
+### SQL adapters (D1, SQLite, PostgreSQL, Turso)
+- **Transactions are emulated** with SAVEPOINT/BEGIN/snapshot depending on adapter.
+- `.filter()` runs JS-side after the SQL query.
+
+### Redis adapter
+- All queries fetch records and filter in JS (no native range queries).
+- Transactions are best-effort with rollback on error.
 
 ### General
-- **No JOINs, GROUP BY, or SQL** — If you need complex analytical queries, use SQLite WASM or raw D1 SQL instead.
+- **No JOINs, GROUP BY, or SQL** — use raw drivers for complex analytical queries.
 
 ## Comparison with Alternatives
 
 | Feature | EasyDB | Dexie.js | idb | SQLite WASM |
 |---------|--------|----------|-----|-------------|
 | Size | ~400 LOC core | ~15k LOC | ~2KB | ~800KB WASM |
-| Multi-backend | IndexedDB, Memory, D1 | IndexedDB only | IndexedDB only | SQLite only |
+| Multi-backend | 9 adapters | IndexedDB only | IndexedDB only | SQLite only |
+| Framework bindings | 7 frameworks | React | No | No |
 | Async iterables | Pull cursor | Callback-based | No | No |
 | Range queries | Native | Native | Manual | SQL |
 | Watch/reactive | Cross-tab | Advanced LiveQuery | No | No |
 | Transactions | Auto-rollback | Robust | Yes | Yes |
 | Migrations | Versioned map | Version-based | Manual | SQL migrations |
-| TypeScript | Included | Included | Included | Varies |
+| TypeScript | Generic schemas | Included | Included | Varies |
 | Dependencies | 0 | 0 | 0 | WASM binary |
-
-**Use EasyDB when:** You want simple CRUD + queries + reactivity with a unified API across browser, server, and edge — in a minimal package.
-
-**Use Dexie.js when:** You need production-grade IndexedDB features, advanced live queries, and battle-tested edge case handling at scale.
-
-**Use SQLite WASM when:** You need JOINs, GROUP BY, subqueries, or complex analytical queries in the browser.
 
 ## Documentation
 
@@ -379,8 +522,9 @@ Build CDN bundles: `npm run build`
 git clone https://github.com/MauricioPerera/easydb.git
 cd easydb
 npm install
-npm test            # Run all 289 tests
+npm test            # Run all 662 tests
 npm run build       # Generate CDN bundles (dist/)
+npm run bench       # Run benchmarks
 npm run metrics     # Show LOC and gzip sizes
 ```
 
@@ -390,7 +534,7 @@ This project emerged from a discussion about Cloudflare's blog post ["We deserve
 
 We asked: **what other JS APIs deserve the same treatment?** IndexedDB was the obvious candidate — an API from 2011 that predates `async/await`, async iterables, and Proxy, all of which are now standard JavaScript.
 
-EasyDB started as a proof of concept and evolved into a multi-backend storage library with adapters for IndexedDB, in-memory, and Cloudflare D1 — demonstrating that modern JavaScript primitives can provide a clean, unified storage API across environments.
+EasyDB started as a proof of concept and evolved into a multi-backend storage library with 9 adapters and 7 framework integrations — demonstrating that modern JavaScript primitives can provide a clean, unified storage API across environments.
 
 ## License
 
