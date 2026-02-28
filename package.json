@@ -6,6 +6,7 @@
   "module": "src/easydb.js",
   "types": "src/easydb.d.ts",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "import": "./src/easydb.js",
@@ -62,8 +63,8 @@
   "bugs": {
     "url": "https://github.com/MauricioPerera/easydb/issues"
   },
-  "directories": {
-    "example": "examples"
+  "engines": {
+    "node": ">=18"
   },
   "devDependencies": {
     "better-sqlite3": "^12.6.2",
