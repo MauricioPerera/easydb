@@ -289,10 +289,9 @@ export class StoreAccessor {
 
   async putMany(items) {
     this._assertStore();
-    const keyPath = this._conn.getKeyPath(this._store);
-    await this._conn.putMany(this._store, items);
-    for (const item of items) {
-      _notify(this._conn.name, this._store, 'put', keyPath ? item[keyPath] : undefined, item);
+    const keys = await this._conn.putMany(this._store, items);
+    for (let i = 0; i < items.length; i++) {
+      _notify(this._conn.name, this._store, 'put', keys[i], items[i]);
     }
     return items.length;
   }
@@ -363,14 +362,20 @@ export class EasyDB {
   constructor(conn, adapter) {
     this._conn = conn;
     this._adapter = adapter;
+    this._closed = false;
     return new Proxy(this, {
       get(target, prop) {
         if (prop in target || typeof prop === 'symbol') return target[prop];
         if (prop === 'then' || prop === 'catch' || prop === 'finally') return undefined;
         if (prop.startsWith('_')) return target[prop];
+        if (target._closed) throw new Error('EasyDB: Database is closed');
         return new StoreAccessor(conn, prop);
       }
     });
+  }
+
+  _assertOpen() {
+    if (this._closed) throw new Error('EasyDB: Database is closed');
   }
 
   get stores() {
@@ -382,14 +387,17 @@ export class EasyDB {
   }
 
   store(name) {
+    this._assertOpen();
     return new StoreAccessor(this._conn, name);
   }
 
   async transaction(storeNames, fn) {
+    this._assertOpen();
     return this._conn.transaction(storeNames, fn);
   }
 
   close() {
+    this._closed = true;
     _watchers.delete(this._conn.name);
     _closeChannel(this._conn.name);
     this._conn.close();

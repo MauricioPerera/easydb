@@ -128,8 +128,9 @@ class IDBConnection {
   async putMany(storeName, items) {
     const tx = this._idb.transaction(storeName, 'readwrite');
     const store = tx.objectStore(storeName);
-    for (const item of items) store.put(item);
+    const keys = await Promise.all(items.map(item => promisifyReq(store.put(item))));
     await promisifyTx(tx);
+    return keys;
   }
 
   // ── Cursor (async generator) ──

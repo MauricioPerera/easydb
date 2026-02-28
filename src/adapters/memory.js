@@ -134,9 +134,11 @@ class MemoryConnection {
   }
 
   async putMany(storeName, items) {
+    const keys = [];
     for (const item of items) {
-      await this.put(storeName, item);
+      keys.push(await this.put(storeName, item));
     }
+    return keys;
   }
 
   // ── Cursor (async generator) ──

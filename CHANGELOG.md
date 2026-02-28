@@ -1,5 +1,37 @@
 # Changelog
 
+## v1.0.1 — 2026-02-28
+
+### Bug Fixes
+- **close() guard** — accessing stores, calling `store()`, or starting transactions after `db.close()` now throws `"EasyDB: Database is closed"` immediately instead of failing deep in the adapter.
+- **putMany watch notifications** — watchers now receive the correct key for each record (including auto-generated keys), instead of `undefined` for autoIncrement stores.
+- **D1 autoIncrement back-patch** — `put()` with autoIncrement now also updates index columns in the back-patch UPDATE, keeping SQL indexes in sync with the `_value` JSON.
+- **All adapters putMany** — `putMany()` now returns an array of keys across all 4 adapters (IDB, Memory, D1, KV), enabling accurate watch notifications.
+
+### Tests
+- 19 new robustness tests covering close() guard, putMany key tracking, autoIncrement watch events, limit(0), skip beyond results, desc().limit(), getMany with mixed keys, and error cases.
+- Test count: 289 → 308.
+
+## v1.0.0 — 2026-02-28
+
+### API Freeze
+- **Stable API** — no breaking changes from this point forward. The public API (EasyDB.open, store accessors, QueryBuilder, watch, transactions, adapters) is frozen.
+
+### New Features
+- **CDN builds** — pre-built ESM (`easydb.mjs.js`), IIFE (`easydb.iife.js`), and UMD (`easydb.umd.js`) bundles in `dist/`. Build with `npm run build`.
+- **Bundle size tracking** — build script reports sizes and enforces <5KB gzip target (currently 4.4KB).
+
+### Documentation
+- Browser compatibility matrix (`docs/BROWSER_COMPATIBILITY.md`)
+- Migration guide from raw IndexedDB and Dexie.js (`docs/MIGRATION.md`)
+- Adapter comparison guide (`docs/ADAPTERS.md`)
+- Contributing guide (`docs/CONTRIBUTING.md`)
+
+### Updated
+- Package renamed to `@rckflr/easydb` for npm publication.
+- README updated with CDN bundle sizes, documentation links, and 289 test count.
+- All 5 roadmap phases completed.
+
 ## v0.7.0 — 2026-02-28
 
 ### New Features
