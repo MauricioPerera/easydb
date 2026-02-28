@@ -30,11 +30,12 @@ function promisifyTx(tx) {
 
 // ── Watch engine (per-instance EventTarget) ──────────────
 
-const _watchers = new Map(); // "dbName:storeName" -> Set<callback>
+const _watchers = new Map(); // dbName -> Map<storeName, Set<callback>>
 
 function _notify(dbName, storeName, type, key, value) {
-  const id = `${dbName}:${storeName}`;
-  const set = _watchers.get(id);
+  const dbMap = _watchers.get(dbName);
+  if (!dbMap) return;
+  const set = dbMap.get(storeName);
   if (set) for (const cb of set) cb({ type, key, value });
 }
 
@@ -45,6 +46,14 @@ export class QueryBuilder {
     this._idb = idb;
     this._store = storeName;
     this._index = indexName;
+    this._assertStore = () => {
+      if (!idb.objectStoreNames.contains(storeName)) {
+        const available = Array.from(idb.objectStoreNames).join(', ');
+        throw new Error(
+          `EasyDB: Store "${storeName}" not found. Available stores: ${available || '(none)'}`
+        );
+      }
+    };
     this._range = keyValue != null ? IDBKeyRange.only(keyValue) : null;
     this._limit = null;
     this._dir = 'next';
@@ -102,6 +111,7 @@ export class QueryBuilder {
     function ensureStarted() {
       if (started) return;
       started = true;
+      self._assertStore();
       const tx = self._idb.transaction(self._store, 'readonly');
       const store = tx.objectStore(self._store);
       const source = self._index ? store.index(self._index) : store;
@@ -160,6 +170,7 @@ export class QueryBuilder {
   // ── Consumption methods with fast paths ──
 
   async toArray() {
+    this._assertStore();
     // FAST PATH: no JS filter → use getAll(keyRange, count)
     // getAll(range, count) returns first N in ascending order,
     // so limit fast path only works for forward direction.
@@ -185,6 +196,7 @@ export class QueryBuilder {
   }
 
   async count() {
+    this._assertStore();
     // FAST PATH: use native IDB count when no JS filter
     if (!this._filterFn) {
       const tx = this._idb.transaction(this._store, 'readonly');
@@ -207,7 +219,17 @@ export class StoreAccessor {
     this._store = storeName;
   }
 
+  _assertStore() {
+    if (!this._idb.objectStoreNames.contains(this._store)) {
+      const available = Array.from(this._idb.objectStoreNames).join(', ');
+      throw new Error(
+        `EasyDB: Store "${this._store}" not found. Available stores: ${available || '(none)'}`
+      );
+    }
+  }
+
   async _run(mode, fn) {
+    this._assertStore();
     const tx = this._idb.transaction(this._store, mode);
     const store = tx.objectStore(this._store);
     const result = await promisifyReq(fn(store));
@@ -222,12 +244,14 @@ export class StoreAccessor {
   async count() { return this._run('readonly', s => s.count()); }
 
   async getMany(keys) {
+    this._assertStore();
     const tx = this._idb.transaction(this._store, 'readonly');
     const store = tx.objectStore(this._store);
     return Promise.all(keys.map(k => promisifyReq(store.get(k))));
   }
 
   async put(value) {
+    this._assertStore();
     const tx = this._idb.transaction(this._store, 'readwrite');
     const store = tx.objectStore(this._store);
     const keyPath = store.keyPath;
@@ -250,6 +274,7 @@ export class StoreAccessor {
   }
 
   async putMany(items) {
+    this._assertStore();
     const tx = this._idb.transaction(this._store, 'readwrite');
     const store = tx.objectStore(this._store);
     const keyPath = store.keyPath;
@@ -284,7 +309,6 @@ export class StoreAccessor {
         const queue = [];
         let waiting = null;
         let done = false;
-        const id = `${dbName}:${storeName}`;
 
         const cb = (evt) => {
           if (keyFilter != null && evt.key !== keyFilter) return;
@@ -292,8 +316,10 @@ export class StoreAccessor {
           else queue.push(evt);
         };
 
-        if (!_watchers.has(id)) _watchers.set(id, new Set());
-        _watchers.get(id).add(cb);
+        if (!_watchers.has(dbName)) _watchers.set(dbName, new Map());
+        const dbMap = _watchers.get(dbName);
+        if (!dbMap.has(storeName)) dbMap.set(storeName, new Set());
+        dbMap.get(storeName).add(cb);
 
         return {
           next() {
@@ -303,8 +329,12 @@ export class StoreAccessor {
           },
           return() {
             done = true;
-            const set = _watchers.get(id);
-            if (set) { set.delete(cb); if (!set.size) _watchers.delete(id); }
+            const dbMap = _watchers.get(dbName);
+            if (dbMap) {
+              const set = dbMap.get(storeName);
+              if (set) { set.delete(cb); if (!set.size) dbMap.delete(storeName); }
+              if (!dbMap.size) _watchers.delete(dbName);
+            }
             if (waiting) { waiting({ value: undefined, done: true }); waiting = null; }
             return Promise.resolve({ value: undefined, done: true });
           },
@@ -328,6 +358,14 @@ export class EasyDB {
         return new StoreAccessor(idb, prop);
       }
     });
+  }
+
+  get stores() {
+    return Array.from(this._idb.objectStoreNames);
+  }
+
+  store(name) {
+    return new StoreAccessor(this._idb, name);
   }
 
   async transaction(storeNames, fn) {
@@ -354,10 +392,7 @@ export class EasyDB {
   }
 
   close() {
-    const prefix = this._idb.name + ':';
-    for (const key of _watchers.keys()) {
-      if (key.startsWith(prefix)) _watchers.delete(key);
-    }
+    _watchers.delete(this._idb.name);
     this._idb.close();
   }
 

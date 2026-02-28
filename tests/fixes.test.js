@@ -110,6 +110,70 @@ describe('Fix: close() cleans up watchers', () => {
   });
 });
 
+describe('Fix: close() does not kill watchers of other databases with prefix-matching names', () => {
+  it('closing db "app" should NOT affect watchers of db "app:v2"', async () => {
+    const schema = (db) => { db.createStore('items', { key: 'id' }); };
+
+    const db1 = await EasyDB.open('app', { schema });
+    const db2 = await EasyDB.open('app:v2', { schema });
+
+    const events = [];
+    const watchPromise = (async () => {
+      for await (const evt of db2.items.watch()) {
+        events.push(evt);
+        if (events.length >= 1) break;
+      }
+    })();
+
+    await wait();
+
+    // Close db1 ("app") — this should NOT touch db2 ("app:v2") watchers
+    db1.close();
+
+    // db2's watcher should still work
+    await db2.items.put({ id: 1, name: 'still alive' });
+    await watchPromise;
+
+    expect(events).toHaveLength(1);
+    expect(events[0].value.name).toBe('still alive');
+
+    db2.close();
+    await EasyDB.destroy('app');
+    await EasyDB.destroy('app:v2');
+  });
+
+  it('closing db "app:v2" should NOT affect watchers of db "app"', async () => {
+    const schema = (db) => { db.createStore('items', { key: 'id' }); };
+
+    const db1 = await EasyDB.open('app', { schema });
+    const db2 = await EasyDB.open('app:v2', { schema });
+
+    const events = [];
+    const watchPromise = (async () => {
+      for await (const evt of db1.items.watch()) {
+        events.push(evt);
+        if (events.length >= 1) break;
+      }
+    })();
+
+    await wait();
+
+    // Close db2 ("app:v2") — should NOT touch db1 ("app") watchers
+    db2.close();
+
+    // db1's watcher should still work
+    await db1.items.put({ id: 1, name: 'still alive' });
+    await watchPromise;
+
+    expect(events).toHaveLength(1);
+    expect(events[0].value.name).toBe('still alive');
+
+    db1.close();
+    await EasyDB.destroy('app');
+    await EasyDB.destroy('app:v2');
+  });
+});
+
 describe('Fix: toArray() fast path with limit', () => {
   let db, name;
 

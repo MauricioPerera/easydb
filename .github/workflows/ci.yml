@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  metrics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Bundle size
+        run: |
+          SIZE=$(wc -c < src/easydb.js)
+          GZIP=$(gzip -c src/easydb.js | wc -c)
+          echo "## Bundle Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Raw size | ${SIZE} bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| Gzipped | ${GZIP} bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| Lines of code | $(wc -l < src/easydb.js) |" >> $GITHUB_STEP_SUMMARY
+          echo ""
+          echo "📦 Raw: ${SIZE} bytes | Gzip: ${GZIP} bytes | LOC: $(wc -l < src/easydb.js)"
+      - name: Test coverage
+        run: npx vitest run --coverage --coverage.reporter=text 2>&1 | tail -20
