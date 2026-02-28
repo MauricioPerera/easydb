@@ -32,15 +32,25 @@ jobs:
       - run: npm ci
       - name: Bundle size
         run: |
-          SIZE=$(wc -c < src/easydb.js)
-          GZIP=$(gzip -c src/easydb.js | wc -c)
+          CORE_LOC=$(wc -l < src/easydb.js)
+          IDB_LOC=$(wc -l < src/adapters/indexeddb.js)
+          MEM_LOC=$(wc -l < src/adapters/memory.js)
+          TOTAL=$(cat src/easydb.js src/adapters/indexeddb.js src/adapters/memory.js | wc -c)
+          CORE_IDB=$(cat src/easydb.js src/adapters/indexeddb.js | gzip -c | wc -c)
+          CORE_MEM=$(cat src/easydb.js src/adapters/memory.js | gzip -c | wc -c)
           echo "## Bundle Metrics" >> $GITHUB_STEP_SUMMARY
-          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Raw size | ${SIZE} bytes |" >> $GITHUB_STEP_SUMMARY
-          echo "| Gzipped | ${GZIP} bytes |" >> $GITHUB_STEP_SUMMARY
-          echo "| Lines of code | $(wc -l < src/easydb.js) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | LOC | Raw |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-----|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| Core | ${CORE_LOC} | $(wc -c < src/easydb.js) bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| IDB Adapter | ${IDB_LOC} | $(wc -c < src/adapters/indexeddb.js) bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| Memory Adapter | ${MEM_LOC} | $(wc -c < src/adapters/memory.js) bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Bundle | Gzip |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Core + IDB (browser) | ${CORE_IDB} bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| Core + Memory (test) | ${CORE_MEM} bytes |" >> $GITHUB_STEP_SUMMARY
           echo ""
-          echo "📦 Raw: ${SIZE} bytes | Gzip: ${GZIP} bytes | LOC: $(wc -l < src/easydb.js)"
+          echo "Core: ${CORE_LOC} LOC | IDB: ${IDB_LOC} LOC | Mem: ${MEM_LOC} LOC"
+          echo "Browser (Core+IDB): ${CORE_IDB} bytes gzip | Test (Core+Mem): ${CORE_MEM} bytes gzip"
       - name: Test coverage
         run: npx vitest run --coverage --coverage.reporter=text 2>&1 | tail -20
