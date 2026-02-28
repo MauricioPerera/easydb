@@ -346,6 +346,21 @@ describe('D1Adapter — Transactions', () => {
     expect(user.name).toBe('Alice');
     expect(order.total).toBe(100);
   });
+
+  it('rolls back on error', async () => {
+    const { db } = await createD1DB();
+    await db.users.put({ id: 1, name: 'Original', email: 'o@t.com', role: 'admin', country: 'UY', age: 30 });
+
+    await expect(
+      db.transaction(['users'], async (tx) => {
+        await tx.users.put({ id: 1, name: 'Modified', email: 'o@t.com', role: 'admin', country: 'UY', age: 30 });
+        throw new Error('rollback test');
+      })
+    ).rejects.toThrow('rollback test');
+
+    const user = await db.users.get(1);
+    expect(user.name).toBe('Original');
+  });
 });
 
 // ── Schema & Lifecycle ───────────────────────────────────
@@ -434,6 +449,27 @@ describe('D1Adapter — AutoIncrement', () => {
     const log = await db.store('logs').get(key1);
     expect(log.msg).toBe('first');
     expect(log.id).toBe(key1);
+  });
+
+  it('putMany on autoIncrement stores back-patches keys', async () => {
+    const db = await EasyDB.open('d1-autoinc-putmany', {
+      adapter,
+      schema(s) { s.createStore('logs', { key: 'id', autoIncrement: true }); }
+    });
+
+    await db.store('logs').putMany([
+      { msg: 'first' },
+      { msg: 'second' },
+      { msg: 'third' },
+    ]);
+
+    const all = await db.store('logs').getAll();
+    expect(all).toHaveLength(3);
+    // Each record should have its auto-generated id field
+    expect(all[0].id).toBeDefined();
+    expect(all[1].id).toBeDefined();
+    expect(all[2].id).toBeDefined();
+    expect(all[0].msg).toBe('first');
   });
 });
 

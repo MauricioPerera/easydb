@@ -22,6 +22,11 @@
  *   };
  */
 
+// Escape SQL identifiers (prevent injection via double-quote in names)
+function _esc(name) {
+  return '"' + String(name).replace(/"/g, '""') + '"';
+}
+
 // ── D1Connection ─────────────────────────────────────────
 
 class D1Connection {
@@ -50,7 +55,7 @@ class D1Connection {
   async get(storeName, key) {
     const meta = this._meta(storeName);
     const row = await this._d1.prepare(
-      `SELECT "_value" FROM "${storeName}" WHERE "${meta.keyPath}" = ?1`
+      `SELECT "_value" FROM ${_esc(storeName)} WHERE ${_esc(meta.keyPath)} = ?1`
     ).bind(key).first();
     return row ? JSON.parse(row._value) : undefined;
   }
@@ -58,14 +63,14 @@ class D1Connection {
   async getAll(storeName, opts = {}) {
     const meta = this._meta(storeName);
     const orderCol = opts.index || meta.keyPath;
-    let sql = `SELECT "_value" FROM "${storeName}"`;
+    let sql = `SELECT "_value" FROM ${_esc(storeName)}`;
     const params = [];
 
     if (opts.range) {
       sql += ` WHERE ${this._where(orderCol, opts.range, params)}`;
     }
 
-    sql += ` ORDER BY "${orderCol}" ASC`;
+    sql += ` ORDER BY ${_esc(orderCol)} ASC`;
 
     if (opts.limit != null) {
       params.push(opts.limit);
@@ -79,7 +84,7 @@ class D1Connection {
   async count(storeName, opts = {}) {
     const meta = this._meta(storeName);
     const orderCol = opts.index || meta.keyPath;
-    let sql = `SELECT COUNT(*) AS _cnt FROM "${storeName}"`;
+    let sql = `SELECT COUNT(*) AS _cnt FROM ${_esc(storeName)}`;
     const params = [];
 
     if (opts.range) {
@@ -105,7 +110,7 @@ class D1Connection {
     const params = [];
 
     if (meta.keyPath && key != null) {
-      cols.push(`"${meta.keyPath}"`);
+      cols.push(_esc(meta.keyPath));
       params.push(key);
     }
 
@@ -113,7 +118,7 @@ class D1Connection {
     params.push(JSON.stringify(value));
 
     for (const idx of meta.indexes) {
-      cols.push(`"${idx.name}"`);
+      cols.push(_esc(idx.name));
       params.push(value[idx.name] ?? null);
     }
 
@@ -121,26 +126,25 @@ class D1Connection {
 
     if (key != null && meta.keyPath) {
       // Upsert — known key
-      const updateCols = cols.filter(c => c !== `"${meta.keyPath}"`);
+      const updateCols = cols.filter(c => c !== _esc(meta.keyPath));
       const setClause = updateCols.map(c => `${c} = excluded.${c}`).join(', ');
       await this._d1.prepare(
-        `INSERT INTO "${storeName}" (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT("${meta.keyPath}") DO UPDATE SET ${setClause}`
+        `INSERT INTO ${_esc(storeName)} (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${_esc(meta.keyPath)}) DO UPDATE SET ${setClause}`
       ).bind(...params).run();
       return key;
     }
 
     if (meta.autoIncrement) {
-      // Auto-generate key
-      await this._d1.prepare(
-        `INSERT INTO "${storeName}" (${cols.join(', ')}) VALUES (${placeholders})`
-      ).bind(...params).run();
-      const row = await this._d1.prepare('SELECT last_insert_rowid() AS _id').first();
-      key = row._id;
-      // Store the generated key in the JSON value
+      // Use RETURNING to atomically get the generated key
+      const row = await this._d1.prepare(
+        `INSERT INTO ${_esc(storeName)} (${cols.join(', ')}) VALUES (${placeholders}) RETURNING ${_esc(meta.keyPath)}`
+      ).bind(...params).first();
+      key = row[meta.keyPath];
+      // Back-patch the generated key into the _value JSON
       if (meta.keyPath) {
         const updated = { ...value, [meta.keyPath]: key };
         await this._d1.prepare(
-          `UPDATE "${storeName}" SET "_value" = ?1 WHERE "${meta.keyPath}" = ?2`
+          `UPDATE ${_esc(storeName)} SET "_value" = ?1 WHERE ${_esc(meta.keyPath)} = ?2`
         ).bind(JSON.stringify(updated), key).run();
       }
       return key;
@@ -152,19 +156,25 @@ class D1Connection {
   async delete(storeName, key) {
     const meta = this._meta(storeName);
     await this._d1.prepare(
-      `DELETE FROM "${storeName}" WHERE "${meta.keyPath}" = ?1`
+      `DELETE FROM ${_esc(storeName)} WHERE ${_esc(meta.keyPath)} = ?1`
     ).bind(key).run();
   }
 
   async clear(storeName) {
-    await this._d1.prepare(`DELETE FROM "${storeName}"`).run();
+    await this._d1.prepare(`DELETE FROM ${_esc(storeName)}`).run();
   }
 
   async putMany(storeName, items) {
-    const stmts = [];
-    for (const item of items) {
-      stmts.push(this._buildPutStmt(storeName, item));
+    const meta = this._meta(storeName);
+    if (meta.autoIncrement) {
+      // AutoIncrement needs RETURNING — must go sequentially
+      for (const item of items) {
+        await this.put(storeName, item);
+      }
+      return;
     }
+    // Non-autoIncrement: batch for atomicity
+    const stmts = items.map(item => this._buildPutStmt(storeName, item));
     await this._d1.batch(stmts);
   }
 
@@ -175,14 +185,14 @@ class D1Connection {
     const orderCol = opts.index || meta.keyPath;
     const dir = opts.direction === 'prev' ? 'DESC' : 'ASC';
 
-    let sql = `SELECT "_value" FROM "${storeName}"`;
+    let sql = `SELECT "_value" FROM ${_esc(storeName)}`;
     const params = [];
 
     if (opts.range) {
       sql += ` WHERE ${this._where(orderCol, opts.range, params)}`;
     }
 
-    sql += ` ORDER BY "${orderCol}" ${dir}`;
+    sql += ` ORDER BY ${_esc(orderCol)} ${dir}`;
 
     const { results } = await this._d1.prepare(sql).bind(...params).all();
     for (const row of results) {
@@ -193,8 +203,15 @@ class D1Connection {
   // ── Multi-store transaction ──
 
   async transaction(storeNames, fn) {
-    // D1 batch() is atomic but doesn't support reads between writes.
-    // We execute ops sequentially (reads are consistent within a request).
+    // Snapshot affected stores for rollback on error
+    const snapshots = new Map();
+    for (const name of storeNames) {
+      const { results } = await this._d1.prepare(
+        `SELECT * FROM ${_esc(name)}`
+      ).all();
+      snapshots.set(name, results);
+    }
+
     const self = this;
     const proxy = new Proxy({}, {
       get(_, storeName) {
@@ -207,7 +224,27 @@ class D1Connection {
         };
       }
     });
-    await fn(proxy);
+
+    try {
+      await fn(proxy);
+    } catch (err) {
+      // Rollback: restore each store from snapshot
+      for (const [name, rows] of snapshots) {
+        await this._d1.prepare(`DELETE FROM ${_esc(name)}`).run();
+        if (rows.length) {
+          const cols = Object.keys(rows[0]);
+          const colsSql = cols.map(c => _esc(c)).join(', ');
+          for (const row of rows) {
+            const placeholders = cols.map((_, i) => `?${i + 1}`).join(', ');
+            const vals = cols.map(c => row[c]);
+            await this._d1.prepare(
+              `INSERT INTO ${_esc(name)} (${colsSql}) VALUES (${placeholders})`
+            ).bind(...vals).run();
+          }
+        }
+      }
+      throw err;
+    }
   }
 
   // ── Internal helpers ──
@@ -223,12 +260,12 @@ class D1Connection {
     if ('lower' in range) {
       const op = range.lowerOpen ? '>' : '>=';
       params.push(range.lower);
-      conditions.push(`"${column}" ${op} ?${params.length}`);
+      conditions.push(`${_esc(column)} ${op} ?${params.length}`);
     }
     if ('upper' in range) {
       const op = range.upperOpen ? '<' : '<=';
       params.push(range.upper);
-      conditions.push(`"${column}" ${op} ?${params.length}`);
+      conditions.push(`${_esc(column)} ${op} ?${params.length}`);
     }
     return conditions.join(' AND ');
   }
@@ -241,7 +278,7 @@ class D1Connection {
     const params = [];
 
     if (meta.keyPath && key != null) {
-      cols.push(`"${meta.keyPath}"`);
+      cols.push(_esc(meta.keyPath));
       params.push(key);
     }
 
@@ -249,22 +286,22 @@ class D1Connection {
     params.push(JSON.stringify(value));
 
     for (const idx of meta.indexes) {
-      cols.push(`"${idx.name}"`);
+      cols.push(_esc(idx.name));
       params.push(value[idx.name] ?? null);
     }
 
     const placeholders = params.map((_, i) => `?${i + 1}`).join(', ');
 
     if (key != null && meta.keyPath) {
-      const updateCols = cols.filter(c => c !== `"${meta.keyPath}"`);
+      const updateCols = cols.filter(c => c !== _esc(meta.keyPath));
       const setClause = updateCols.map(c => `${c} = excluded.${c}`).join(', ');
       return this._d1.prepare(
-        `INSERT INTO "${storeName}" (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT("${meta.keyPath}") DO UPDATE SET ${setClause}`
+        `INSERT INTO ${_esc(storeName)} (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${_esc(meta.keyPath)}) DO UPDATE SET ${setClause}`
       ).bind(...params);
     }
 
     return this._d1.prepare(
-      `INSERT INTO "${storeName}" (${cols.join(', ')}) VALUES (${placeholders})`
+      `INSERT INTO ${_esc(storeName)} (${cols.join(', ')}) VALUES (${placeholders})`
     ).bind(...params);
   }
 }
@@ -312,8 +349,8 @@ export class D1Adapter {
         if (keyPath) {
           cols.push(
             autoIncrement
-              ? `"${keyPath}" INTEGER PRIMARY KEY AUTOINCREMENT`
-              : `"${keyPath}" PRIMARY KEY`
+              ? `${_esc(keyPath)} INTEGER PRIMARY KEY AUTOINCREMENT`
+              : `${_esc(keyPath)} PRIMARY KEY`
           );
         }
         cols.push('"_value" TEXT NOT NULL');
@@ -322,19 +359,19 @@ export class D1Adapter {
           for (const idx of opts.indexes) {
             const n = typeof idx === 'string' ? idx : idx.name;
             const unique = typeof idx === 'string' ? false : (idx.unique || false);
-            cols.push(`"${n}"`);
+            cols.push(_esc(n));
             indexes.push({ name: n, unique });
           }
         }
 
         stmts.push(
-          this._d1.prepare(`CREATE TABLE IF NOT EXISTS "${storeName}" (${cols.join(', ')})`)
+          this._d1.prepare(`CREATE TABLE IF NOT EXISTS ${_esc(storeName)} (${cols.join(', ')})`)
         );
 
         for (const idx of indexes) {
           const u = idx.unique ? 'UNIQUE ' : '';
           stmts.push(
-            this._d1.prepare(`CREATE ${u}INDEX IF NOT EXISTS "idx_${storeName}_${idx.name}" ON "${storeName}"("${idx.name}")`)
+            this._d1.prepare(`CREATE ${u}INDEX IF NOT EXISTS ${_esc('idx_' + storeName + '_' + idx.name)} ON ${_esc(storeName)}(${_esc(idx.name)})`)
           );
         }
 
@@ -372,7 +409,7 @@ export class D1Adapter {
       ).all();
 
       const stmts = results.map(r =>
-        this._d1.prepare(`DROP TABLE IF EXISTS "${r.store}"`)
+        this._d1.prepare(`DROP TABLE IF EXISTS ${_esc(r.store)}`)
       );
       stmts.push(this._d1.prepare(`DROP TABLE IF EXISTS "_easydb_meta"`));
 

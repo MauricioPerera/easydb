@@ -96,7 +96,9 @@ class IDBConnection {
   async getMany(storeName, keys) {
     const tx = this._idb.transaction(storeName, 'readonly');
     const store = tx.objectStore(storeName);
-    return Promise.all(keys.map(k => promisifyReq(store.get(k))));
+    const results = await Promise.all(keys.map(k => promisifyReq(store.get(k))));
+    await promisifyTx(tx);
+    return results;
   }
 
   // ── Write ops ──
