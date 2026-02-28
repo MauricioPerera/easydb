@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.6.0 — 2026-02-28
+
+### New Features
+- **KV Adapter** — Cloudflare Workers KV backend. Stores records as individual KV entries with prefix-based namespacing. Supports autoIncrement, unique indexes, range queries (JS-side filtering), and best-effort transactions with rollback.
+- **React hooks** — `useQuery(query)` and `useRecord(store, key)` with auto-refresh via `watch()`. Returns `{ data, loading, error, refresh }`. React is an optional peer dependency.
+- **Generic TypeScript** — `EasyDB.open<Schema>()` returns fully typed store accessors. `db.users.get(1)` returns `Promise<Schema['users'] | undefined>`. Typed transactions, typed `store()`.
+
+### Updated
+- TypeScript declarations for KVAdapter and React hooks.
+- 275 tests across 10 test files (4 adapters).
+- Sub-path exports: `@aspect/easydb/adapters/kv`, `@aspect/easydb/react`.
+
 ## v0.5.0 — 2026-02-28
 
 ### New Features

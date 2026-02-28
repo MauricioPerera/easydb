@@ -1,6 +1,6 @@
 {
   "name": "@aspect/easydb",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Multi-backend storage with async/await, async iterables, and modern JavaScript — IndexedDB, Memory, D1/SQLite",
   "main": "src/easydb.js",
   "module": "src/easydb.js",
