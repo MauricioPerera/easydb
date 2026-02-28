@@ -6,6 +6,7 @@
   "module": "src/easydb.js",
   "types": "src/easydb.d.ts",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "import": "./src/easydb.js",
@@ -32,6 +33,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "metrics": "echo \"Core: $(wc -l < src/easydb.js) LOC | IDB: $(wc -l < src/adapters/indexeddb.js) LOC | Mem: $(wc -l < src/adapters/memory.js) LOC | D1: $(wc -l < src/adapters/d1.js) LOC | Browser gzip: $(cat src/easydb.js src/adapters/indexeddb.js | gzip -c | wc -c)B | Workers gzip: $(cat src/easydb.js src/adapters/d1.js | gzip -c | wc -c)B\"",
+    "bench": "node benchmarks/run.js",
     "demo": "open demo/index.html"
   },
   "keywords": [
@@ -62,8 +64,8 @@
   "bugs": {
     "url": "https://github.com/MauricioPerera/easydb/issues"
   },
-  "directories": {
-    "example": "examples"
+  "engines": {
+    "node": ">=18"
   },
   "devDependencies": {
     "better-sqlite3": "^12.6.2",

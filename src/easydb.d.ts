@@ -71,6 +71,10 @@ export declare class D1Adapter implements Adapter {
 export interface QueryBuilder<T> extends AsyncIterable<T> {
   /** Limit number of results. */
   limit(n: number): QueryBuilder<T>;
+  /** Skip the first N results. */
+  skip(n: number): QueryBuilder<T>;
+  /** Shorthand for `.skip((pageNum - 1) * pageSize).limit(pageSize)`. Pages are 1-indexed. */
+  page(pageNum: number, pageSize: number): QueryBuilder<T>;
   /** Reverse order (descending). */
   desc(): QueryBuilder<T>;
   /** Forward order (ascending, default). */

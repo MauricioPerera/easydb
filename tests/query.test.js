@@ -329,6 +329,133 @@ describe('QueryBuilder — first()', () => {
   });
 });
 
+describe('QueryBuilder — skip()', () => {
+  let db, name;
+
+  beforeEach(async () => {
+    ({ db, name } = await createTestDB());
+    await seedUsers(db, 10);
+  });
+
+  afterEach(async () => {
+    await destroyTestDB(db, name);
+  });
+
+  it('should skip first N results', async () => {
+    const results = await db.users.all().skip(3).toArray();
+    expect(results).toHaveLength(7);
+    expect(results[0].id).toBe(4);
+  });
+
+  it('skip + limit', async () => {
+    const results = await db.users.all().skip(2).limit(3).toArray();
+    expect(results).toHaveLength(3);
+    expect(results.map(u => u.id)).toEqual([3, 4, 5]);
+  });
+
+  it('skip + desc', async () => {
+    const results = await db.users.all().desc().skip(2).toArray();
+    expect(results).toHaveLength(8);
+    expect(results[0].id).toBe(8);
+  });
+
+  it('skip + desc + limit', async () => {
+    const results = await db.users.all().desc().skip(2).limit(3).toArray();
+    expect(results).toHaveLength(3);
+    expect(results.map(u => u.id)).toEqual([8, 7, 6]);
+  });
+
+  it('skip beyond dataset returns empty', async () => {
+    const results = await db.users.all().skip(100).toArray();
+    expect(results).toHaveLength(0);
+  });
+
+  it('skip(0) is a no-op', async () => {
+    const results = await db.users.all().skip(0).toArray();
+    expect(results).toHaveLength(10);
+  });
+
+  it('skip + filter', async () => {
+    // admins: ids 1, 4, 7, 10
+    const results = await db.users.all()
+      .filter(u => u.role === 'admin')
+      .skip(2)
+      .toArray();
+    expect(results).toHaveLength(2);
+    expect(results.map(u => u.id)).toEqual([7, 10]);
+  });
+
+  it('skip + where (index query)', async () => {
+    // ages: 20,23,26,29,32,35,38,41,44,47 — gt(30): 32,35,38,41,44,47
+    const results = await db.users.where('age').gt(30).skip(2).toArray();
+    expect(results).toHaveLength(4);
+    expect(results[0].age).toBe(38);
+  });
+
+  it('skip via async iterator', async () => {
+    const results = await collect(db.users.all().skip(7));
+    expect(results).toHaveLength(3);
+    expect(results[0].id).toBe(8);
+  });
+});
+
+describe('QueryBuilder — page()', () => {
+  let db, name;
+
+  beforeEach(async () => {
+    ({ db, name } = await createTestDB());
+    await seedUsers(db, 10);
+  });
+
+  afterEach(async () => {
+    await destroyTestDB(db, name);
+  });
+
+  it('page 1', async () => {
+    const results = await db.users.all().page(1, 3).toArray();
+    expect(results.map(u => u.id)).toEqual([1, 2, 3]);
+  });
+
+  it('page 2', async () => {
+    const results = await db.users.all().page(2, 3).toArray();
+    expect(results.map(u => u.id)).toEqual([4, 5, 6]);
+  });
+
+  it('page 3', async () => {
+    const results = await db.users.all().page(3, 3).toArray();
+    expect(results.map(u => u.id)).toEqual([7, 8, 9]);
+  });
+
+  it('last partial page', async () => {
+    const results = await db.users.all().page(4, 3).toArray();
+    expect(results.map(u => u.id)).toEqual([10]);
+  });
+
+  it('page beyond dataset returns empty', async () => {
+    const results = await db.users.all().page(5, 3).toArray();
+    expect(results).toHaveLength(0);
+  });
+
+  it('page + desc', async () => {
+    const results = await db.users.all().desc().page(1, 3).toArray();
+    expect(results.map(u => u.id)).toEqual([10, 9, 8]);
+  });
+
+  it('page + where', async () => {
+    // admins: ids 1, 4, 7, 10
+    const results = await db.users.where('role', 'admin').page(2, 2).toArray();
+    expect(results.map(u => u.id)).toEqual([7, 10]);
+  });
+
+  it('page + filter', async () => {
+    // viewers: ids 3, 6, 9
+    const p1 = await db.users.all().filter(u => u.role === 'viewer').page(1, 2).toArray();
+    const p2 = await db.users.all().filter(u => u.role === 'viewer').page(2, 2).toArray();
+    expect(p1.map(u => u.id)).toEqual([3, 6]);
+    expect(p2.map(u => u.id)).toEqual([9]);
+  });
+});
+
 describe('QueryBuilder — immutability', () => {
   let db, name;
 
@@ -360,6 +487,17 @@ describe('QueryBuilder — immutability', () => {
     const filteredAdmins = await filtered.toArray();
 
     expect(allAdmins.length).toBeGreaterThan(filteredAdmins.length);
+  });
+
+  it('skip() should not mutate original query', async () => {
+    const base = db.users.all();
+    const skipped = base.skip(5);
+
+    const allResults = await base.toArray();
+    const skippedResults = await skipped.toArray();
+
+    expect(allResults).toHaveLength(10);
+    expect(skippedResults).toHaveLength(5);
   });
 
   it('desc() should not mutate original query', async () => {
