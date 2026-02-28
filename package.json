@@ -17,6 +17,9 @@
     "LICENSE"
   ],
   "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "demo": "open demo/index.html"
   },
   "keywords": [
@@ -35,10 +38,17 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/MauricioPerera/easydb"
+    "url": "git+https://github.com/MauricioPerera/easydb.git"
   },
   "homepage": "https://github.com/MauricioPerera/easydb#readme",
   "bugs": {
     "url": "https://github.com/MauricioPerera/easydb/issues"
+  },
+  "directories": {
+    "example": "examples"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.5",
+    "vitest": "^4.0.18"
   }
 }
