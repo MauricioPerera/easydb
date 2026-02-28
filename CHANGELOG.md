@@ -10,7 +10,7 @@
 ### Updated
 - ROADMAP.md updated to reflect Phase 0–4 completion status.
 - 289 tests across 12 test files (4 adapters + 3 framework integrations).
-- Sub-path exports: `@aspect/easydb/vue`, `@aspect/easydb/svelte`.
+- Sub-path exports: `@rckflr/easydb/vue`, `@rckflr/easydb/svelte`.
 - Optional peer dependencies for Vue (>=3) and Svelte (>=3).
 
 ## v0.6.0 — 2026-02-28
@@ -23,7 +23,7 @@
 ### Updated
 - TypeScript declarations for KVAdapter and React hooks.
 - 275 tests across 10 test files (4 adapters).
-- Sub-path exports: `@aspect/easydb/adapters/kv`, `@aspect/easydb/react`.
+- Sub-path exports: `@rckflr/easydb/adapters/kv`, `@rckflr/easydb/react`.
 
 ## v0.5.0 — 2026-02-28
 

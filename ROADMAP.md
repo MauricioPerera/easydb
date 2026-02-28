@@ -152,7 +152,7 @@ Same code everywhere:
 
 ### Distribution
 
-- [ ] Publish to npm as `@aspect/easydb` (package ready, needs `npm login`)
+- [x] Publish to npm as `@rckflr/easydb`
 - [ ] CDN builds (ESM, UMD, IIFE)
 
 ### Documentation site

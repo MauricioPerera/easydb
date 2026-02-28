@@ -2,7 +2,7 @@
  * React integration for EasyDB
  *
  * @example
- * import { useQuery, useRecord } from '@aspect/easydb/react';
+ * import { useQuery, useRecord } from '@rckflr/easydb/react';
  *
  * function AdminList({ db }) {
  *   const { data, loading } = useQuery(db.users.where('role', 'admin'));
