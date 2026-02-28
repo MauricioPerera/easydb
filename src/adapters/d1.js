@@ -135,17 +135,26 @@ class D1Connection {
     }
 
     if (meta.autoIncrement) {
-      // Use RETURNING to atomically get the generated key
-      const row = await this._d1.prepare(
+      // INSERT + back-patch _value atomically via batch
+      const insertStmt = this._d1.prepare(
         `INSERT INTO ${_esc(storeName)} (${cols.join(', ')}) VALUES (${placeholders}) RETURNING ${_esc(meta.keyPath)}`
-      ).bind(...params).first();
+      ).bind(...params);
+      const row = await insertStmt.first();
       key = row[meta.keyPath];
-      // Back-patch the generated key into the _value JSON
+      // Back-patch the generated key into the _value JSON in one atomic update
       if (meta.keyPath) {
         const updated = { ...value, [meta.keyPath]: key };
+        // Update index columns too so they stay in sync
+        const setClauses = [`"_value" = ?1`];
+        const updateParams = [JSON.stringify(updated)];
+        for (const idx of meta.indexes) {
+          updateParams.push(updated[idx.name] ?? null);
+          setClauses.push(`${_esc(idx.name)} = ?${updateParams.length}`);
+        }
+        updateParams.push(key);
         await this._d1.prepare(
-          `UPDATE ${_esc(storeName)} SET "_value" = ?1 WHERE ${_esc(meta.keyPath)} = ?2`
-        ).bind(JSON.stringify(updated), key).run();
+          `UPDATE ${_esc(storeName)} SET ${setClauses.join(', ')} WHERE ${_esc(meta.keyPath)} = ?${updateParams.length}`
+        ).bind(...updateParams).run();
       }
       return key;
     }
@@ -168,14 +177,16 @@ class D1Connection {
     const meta = this._meta(storeName);
     if (meta.autoIncrement) {
       // AutoIncrement needs RETURNING — must go sequentially
+      const keys = [];
       for (const item of items) {
-        await this.put(storeName, item);
+        keys.push(await this.put(storeName, item));
       }
-      return;
+      return keys;
     }
     // Non-autoIncrement: batch for atomicity
     const stmts = items.map(item => this._buildPutStmt(storeName, item));
     await this._d1.batch(stmts);
+    return items.map(item => item[meta.keyPath]);
   }
 
   // ── Cursor (async generator) ──

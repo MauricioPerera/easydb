@@ -1,6 +1,6 @@
 {
   "name": "@rckflr/easydb",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Multi-backend storage with async/await, async iterables, and modern JavaScript — IndexedDB, Memory, D1/SQLite",
   "main": "src/easydb.js",
   "module": "src/easydb.js",
