@@ -59,6 +59,13 @@ export declare class MemoryAdapter implements Adapter {
   destroy(name: string): Promise<void>;
 }
 
+/** Cloudflare D1 (SQLite) adapter for Workers. */
+export declare class D1Adapter implements Adapter {
+  constructor(d1: any);
+  open(name: string, options?: OpenOptions): Promise<AdapterConnection>;
+  destroy(name: string): Promise<void>;
+}
+
 // ── QueryBuilder ─────────────────────────────────────────
 
 export interface QueryBuilder<T> extends AsyncIterable<T> {

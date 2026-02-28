@@ -7,6 +7,7 @@
  * Supports multiple storage backends via adapters:
  * - IDBAdapter (browser IndexedDB, default)
  * - MemoryAdapter (testing, SSR, serverless)
+ * - D1Adapter (Cloudflare Workers D1/SQLite)
  *
  * Zero dependencies. Works in any modern browser or runtime.
  *
@@ -19,6 +20,7 @@ import { IDBAdapter } from './adapters/indexeddb.js';
 // Re-export adapters for convenience
 export { IDBAdapter } from './adapters/indexeddb.js';
 export { MemoryAdapter } from './adapters/memory.js';
+export { D1Adapter } from './adapters/d1.js';
 
 // ── Watch engine ─────────────────────────────────────────
 

@@ -17,6 +17,9 @@
     },
     "./adapters/memory": {
       "import": "./src/adapters/memory.js"
+    },
+    "./adapters/d1": {
+      "import": "./src/adapters/d1.js"
     }
   },
   "files": [
@@ -44,6 +47,9 @@
     "reactive",
     "adapter",
     "memory-adapter",
+    "d1-adapter",
+    "cloudflare-workers",
+    "sqlite",
     "multi-backend"
   ],
   "author": "Mauricio Perera <https://automators.work>",
@@ -60,6 +66,7 @@
     "example": "examples"
   },
   "devDependencies": {
+    "better-sqlite3": "^12.6.2",
     "fake-indexeddb": "^6.2.5",
     "vitest": "^4.0.18"
   }
