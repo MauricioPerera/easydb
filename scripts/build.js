@@ -20,6 +20,7 @@ const stubServerAdapters = {
     b.onResolve({ filter: /adapters\/postgres\.js$/ }, () => ({ path: stubPath }));
     b.onResolve({ filter: /adapters\/redis\.js$/ }, () => ({ path: stubPath }));
     b.onResolve({ filter: /adapters\/turso\.js$/ }, () => ({ path: stubPath }));
+    b.onResolve({ filter: /adapters\/sqlite\.js$/ }, () => ({ path: stubPath }));
   },
 };
 
