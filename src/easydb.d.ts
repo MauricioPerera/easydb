@@ -1,9 +1,63 @@
 /**
- * EasyDB — IndexedDB reimagined with async/await, async iterables, and modern JS.
+ * EasyDB — Multi-backend storage with async/await, async iterables, and modern JS.
  *
  * @license MIT
  * @author Mauricio Perera <https://automators.work>
  */
+
+// ── Adapter interface ────────────────────────────────────
+
+/** Adapter-agnostic key range (converted to IDBKeyRange by IDB adapter). */
+export interface Range {
+  lower?: any;
+  lowerOpen?: boolean;
+  upper?: any;
+  upperOpen?: boolean;
+}
+
+/** Connection returned by an adapter's open() method. */
+export interface AdapterConnection {
+  readonly name: string;
+  readonly version: number;
+  readonly storeNames: string[];
+  hasStore(name: string): boolean;
+  getKeyPath(storeName: string): string | null;
+  close(): void;
+
+  get(storeName: string, key: any): Promise<any>;
+  getAll(storeName: string, opts?: { index?: string; range?: Range; limit?: number }): Promise<any[]>;
+  count(storeName: string, opts?: { index?: string; range?: Range }): Promise<number>;
+  getMany(storeName: string, keys: any[]): Promise<any[]>;
+
+  put(storeName: string, value: any): Promise<any>;
+  delete(storeName: string, key: any): Promise<void>;
+  clear(storeName: string): Promise<void>;
+  putMany(storeName: string, items: any[]): Promise<void>;
+
+  cursor(storeName: string, opts?: { index?: string; range?: Range; direction?: 'next' | 'prev' }): AsyncGenerator<any>;
+
+  transaction(storeNames: string[], fn: (proxy: TransactionProxy) => Promise<void>): Promise<void>;
+}
+
+/** Storage adapter interface. Implement this to add a new backend. */
+export interface Adapter {
+  open(name: string, options?: OpenOptions): Promise<AdapterConnection>;
+  destroy(name: string): Promise<void>;
+}
+
+// ── Adapters ─────────────────────────────────────────────
+
+/** IndexedDB adapter (browser). Default when no adapter is specified. */
+export declare class IDBAdapter implements Adapter {
+  open(name: string, options?: OpenOptions): Promise<AdapterConnection>;
+  destroy(name: string): Promise<void>;
+}
+
+/** In-memory adapter for testing, SSR, and serverless environments. */
+export declare class MemoryAdapter implements Adapter {
+  open(name: string, options?: OpenOptions): Promise<AdapterConnection>;
+  destroy(name: string): Promise<void>;
+}
 
 // ── QueryBuilder ─────────────────────────────────────────
 
@@ -15,21 +69,16 @@ export interface QueryBuilder<T> extends AsyncIterable<T> {
   /** Forward order (ascending, default). */
   asc(): QueryBuilder<T>;
 
-  /** Greater than (native IDBKeyRange). */
-  gt(value: IDBValidKey): QueryBuilder<T>;
-  /** Greater than or equal (native IDBKeyRange). */
-  gte(value: IDBValidKey): QueryBuilder<T>;
-  /** Less than (native IDBKeyRange). */
-  lt(value: IDBValidKey): QueryBuilder<T>;
-  /** Less than or equal (native IDBKeyRange). */
-  lte(value: IDBValidKey): QueryBuilder<T>;
-  /** Inclusive range (native IDBKeyRange). */
-  between(
-    lo: IDBValidKey,
-    hi: IDBValidKey,
-    loOpen?: boolean,
-    hiOpen?: boolean,
-  ): QueryBuilder<T>;
+  /** Greater than. */
+  gt(value: any): QueryBuilder<T>;
+  /** Greater than or equal. */
+  gte(value: any): QueryBuilder<T>;
+  /** Less than. */
+  lt(value: any): QueryBuilder<T>;
+  /** Less than or equal. */
+  lte(value: any): QueryBuilder<T>;
+  /** Inclusive range. */
+  between(lo: any, hi: any, loOpen?: boolean, hiOpen?: boolean): QueryBuilder<T>;
 
   /** JS-side filter predicate. Composable — multiple filters are ANDed. */
   filter(fn: (value: T) => boolean): QueryBuilder<T>;
@@ -38,7 +87,7 @@ export interface QueryBuilder<T> extends AsyncIterable<T> {
   toArray(): Promise<T[]>;
   /** Get the first matching result, or undefined. */
   first(): Promise<T | undefined>;
-  /** Count matching results. Uses native IDB count when possible. */
+  /** Count matching results. Uses native count when possible. */
   count(): Promise<number>;
 
   [Symbol.asyncIterator](): AsyncIterator<T>;
@@ -48,31 +97,31 @@ export interface QueryBuilder<T> extends AsyncIterable<T> {
 
 export interface WatchEvent<T> {
   type: 'put' | 'delete' | 'clear';
-  key: IDBValidKey | null;
+  key: any;
   value: T | undefined;
 }
 
 export interface WatchOptions {
   /** Only emit events for this specific key. */
-  key?: IDBValidKey;
+  key?: any;
 }
 
 // ── StoreAccessor ────────────────────────────────────────
 
 export interface StoreAccessor<T> {
   /** Get a single record by key. */
-  get(key: IDBValidKey): Promise<T | undefined>;
+  get(key: any): Promise<T | undefined>;
   /** Get all records in the store. */
   getAll(): Promise<T[]>;
   /** Count all records in the store. */
   count(): Promise<number>;
   /** Get multiple records by keys. Returns undefined for missing keys. */
-  getMany(keys: IDBValidKey[]): Promise<(T | undefined)[]>;
+  getMany(keys: any[]): Promise<(T | undefined)[]>;
 
   /** Insert or update a record. Returns the key. */
-  put(value: T): Promise<IDBValidKey>;
+  put(value: T): Promise<any>;
   /** Delete a record by key. */
-  delete(key: IDBValidKey): Promise<void>;
+  delete(key: any): Promise<void>;
   /** Delete all records in the store. */
   clear(): Promise<void>;
   /** Insert or update multiple records. Returns the count. */
@@ -81,7 +130,7 @@ export interface StoreAccessor<T> {
   /** Query all records. Returns a QueryBuilder for chaining. */
   all(): QueryBuilder<T>;
   /** Query by index. Pass value for exact match, or chain with .gt()/.lt()/etc. */
-  where(indexName: string, value?: IDBValidKey): QueryBuilder<T>;
+  where(indexName: string, value?: any): QueryBuilder<T>;
 
   /** Watch for mutations. Returns an async iterable of WatchEvents. */
   watch(opts?: WatchOptions): AsyncIterable<WatchEvent<T>>;
@@ -101,23 +150,25 @@ export interface StoreDefinition {
 export interface SchemaBuilder {
   /** Create a new object store. */
   createStore(name: string, opts?: StoreDefinition): void;
-  /** Get an existing object store during upgrade. */
-  getStore(name: string): IDBObjectStore;
+  /** Get an existing object store during upgrade (IDB adapter only). */
+  getStore(name: string): any;
 }
 
 export interface OpenOptions {
   /** Database version (default: 1). */
   version?: number;
-  /** Schema definition callback, called during upgradeneeded. */
+  /** Schema definition callback, called during upgrade. */
   schema?: (db: SchemaBuilder, oldVersion: number) => void;
+  /** Storage adapter. Defaults to IDBAdapter. */
+  adapter?: Adapter;
 }
 
 // ── Transaction ──────────────────────────────────────────
 
 export interface TransactionStore<T> {
-  get(key: IDBValidKey): Promise<T | undefined>;
-  put(value: T): Promise<IDBValidKey>;
-  delete(key: IDBValidKey): Promise<void>;
+  get(key: any): Promise<T | undefined>;
+  put(value: T): Promise<any>;
+  delete(key: any): Promise<void>;
   getAll(): Promise<T[]>;
   count(): Promise<number>;
 }
@@ -129,11 +180,14 @@ export type TransactionProxy = {
 // ── EasyDB ───────────────────────────────────────────────
 
 export declare class EasyDB {
-  /** The underlying IDBDatabase instance. */
-  readonly _idb: IDBDatabase;
+  /** The adapter connection. */
+  readonly _conn: AdapterConnection;
 
   /** List of available store names. */
   readonly stores: string[];
+
+  /** Database version. */
+  readonly version: number;
 
   /**
    * Explicitly access a store by name.
@@ -157,11 +211,15 @@ export declare class EasyDB {
   /**
    * Open or create a database.
    * Returns a Proxy — access stores as properties (e.g., db.users).
+   * Pass options.adapter to use a non-default backend.
    */
   static open(name: string, options?: OpenOptions): Promise<EasyDB & { [storeName: string]: StoreAccessor<any> }>;
 
-  /** Delete a database. */
-  static destroy(name: string): Promise<void>;
+  /**
+   * Delete a database.
+   * Pass options.adapter when using a non-default backend.
+   */
+  static destroy(name: string, options?: { adapter?: Adapter }): Promise<void>;
 
   /** Proxy: access any store as a property. */
   [storeName: string]: StoreAccessor<any> | any;

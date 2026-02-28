@@ -1,34 +1,26 @@
 /**
- * EasyDB v2 — IndexedDB reimagined
- * 
- * A thin ergonomic wrapper over IndexedDB using modern JavaScript primitives:
- * async/await, async iterables, Proxy, and native IDB fast paths.
- * 
- * ~250 lines. Zero dependencies. Works in any modern browser.
- * 
+ * EasyDB — IndexedDB reimagined, now multi-backend
+ *
+ * A thin ergonomic wrapper using modern JavaScript primitives:
+ * async/await, async iterables, Proxy, and native fast paths.
+ *
+ * Supports multiple storage backends via adapters:
+ * - IDBAdapter (browser IndexedDB, default)
+ * - MemoryAdapter (testing, SSR, serverless)
+ *
+ * Zero dependencies. Works in any modern browser or runtime.
+ *
  * @license MIT
  * @author Mauricio Perera <https://automators.work>
- * @see https://blog.cloudflare.com/a-better-web-streams-api/
  */
 
-// ── Helpers ──────────────────────────────────────────────
+import { IDBAdapter } from './adapters/indexeddb.js';
 
-function promisifyReq(request) {
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
+// Re-export adapters for convenience
+export { IDBAdapter } from './adapters/indexeddb.js';
+export { MemoryAdapter } from './adapters/memory.js';
 
-function promisifyTx(tx) {
-  return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error || new DOMException('Aborted', 'AbortError'));
-  });
-}
-
-// ── Watch engine (per-instance EventTarget) ──────────────
+// ── Watch engine ─────────────────────────────────────────
 
 const _watchers = new Map(); // dbName -> Map<storeName, Set<callback>>
 
@@ -42,27 +34,30 @@ function _notify(dbName, storeName, type, key, value) {
 // ── QueryBuilder ─────────────────────────────────────────
 
 export class QueryBuilder {
-  constructor(idb, storeName, indexName = null, keyValue = null) {
-    this._idb = idb;
+  constructor(conn, storeName, indexName = null, keyValue = null) {
+    this._conn = conn;
     this._store = storeName;
     this._index = indexName;
-    this._assertStore = () => {
-      if (!idb.objectStoreNames.contains(storeName)) {
-        const available = Array.from(idb.objectStoreNames).join(', ');
-        throw new Error(
-          `EasyDB: Store "${storeName}" not found. Available stores: ${available || '(none)'}`
-        );
-      }
-    };
-    this._range = keyValue != null ? IDBKeyRange.only(keyValue) : null;
+    this._range = keyValue != null
+      ? { lower: keyValue, upper: keyValue, lowerOpen: false, upperOpen: false }
+      : null;
     this._limit = null;
     this._dir = 'next';
     this._filterFn = null;
     this._hasExactKey = keyValue != null;
   }
 
+  _assertStore() {
+    if (!this._conn.hasStore(this._store)) {
+      const available = this._conn.storeNames.join(', ');
+      throw new Error(
+        `EasyDB: Store "${this._store}" not found. Available stores: ${available || '(none)'}`
+      );
+    }
+  }
+
   _clone() {
-    const q = new QueryBuilder(this._idb, this._store, this._index);
+    const q = new QueryBuilder(this._conn, this._store, this._index);
     q._range = this._range;
     q._limit = this._limit;
     q._dir = this._dir;
@@ -77,15 +72,15 @@ export class QueryBuilder {
   desc() { const q = this._clone(); q._dir = 'prev'; return q; }
   asc() { const q = this._clone(); q._dir = 'next'; return q; }
 
-  // ── Range queries (generate native IDBKeyRange) ──
+  // ── Range queries (adapter-agnostic range objects) ──
 
-  gt(val) { const q = this._clone(); q._range = IDBKeyRange.lowerBound(val, true); return q; }
-  gte(val) { const q = this._clone(); q._range = IDBKeyRange.lowerBound(val, false); return q; }
-  lt(val) { const q = this._clone(); q._range = IDBKeyRange.upperBound(val, true); return q; }
-  lte(val) { const q = this._clone(); q._range = IDBKeyRange.upperBound(val, false); return q; }
+  gt(val) { const q = this._clone(); q._range = { lower: val, lowerOpen: true }; return q; }
+  gte(val) { const q = this._clone(); q._range = { lower: val, lowerOpen: false }; return q; }
+  lt(val) { const q = this._clone(); q._range = { upper: val, upperOpen: true }; return q; }
+  lte(val) { const q = this._clone(); q._range = { upper: val, upperOpen: false }; return q; }
   between(lo, hi, loOpen = false, hiOpen = false) {
     const q = this._clone();
-    q._range = IDBKeyRange.bound(lo, hi, loOpen, hiOpen);
+    q._range = { lower: lo, upper: hi, lowerOpen: loOpen, upperOpen: hiOpen };
     return q;
   }
 
@@ -98,70 +93,46 @@ export class QueryBuilder {
     return q;
   }
 
-  // ── True pull-based async iterator ──
+  // ── Async iterator (delegates to adapter cursor) ──
 
   [Symbol.asyncIterator]() {
     const self = this;
-    let resolve = null;
-    let reject = null;
-    let done = false;
-    let started = false;
-    let request;
-
-    function ensureStarted() {
-      if (started) return;
-      started = true;
-      self._assertStore();
-      const tx = self._idb.transaction(self._store, 'readonly');
-      const store = tx.objectStore(self._store);
-      const source = self._index ? store.index(self._index) : store;
-      request = source.openCursor(self._range, self._dir);
-      request.onsuccess = () => {
-        if (resolve) { const r = resolve; resolve = null; reject = null; r(request.result); }
-      };
-      request.onerror = () => {
-        done = true;
-        if (reject) { const rj = reject; resolve = null; reject = null; rj(request.error); }
-      };
-    }
-
-    function waitCursor() {
-      return new Promise((res, rej) => {
-        resolve = res;
-        reject = rej;
-        if (request && request.readyState === 'done') {
-          resolve = null;
-          reject = null;
-          if (request.error) { done = true; rej(request.error); }
-          else { res(request.result); }
-        }
-      });
-    }
-
+    let cursorIter = null;
     let count = 0;
+    let done = false;
 
     return {
       async next() {
-        ensureStarted();
+        if (!cursorIter) {
+          self._assertStore();
+          cursorIter = self._conn.cursor(self._store, {
+            index: self._index,
+            range: self._range,
+            direction: self._dir,
+          });
+        }
         while (true) {
           if (done) return { value: undefined, done: true };
-          if (self._limit != null && count >= self._limit) return { value: undefined, done: true };
+          if (self._limit != null && count >= self._limit) {
+            done = true;
+            if (cursorIter.return) cursorIter.return();
+            return { value: undefined, done: true };
+          }
 
-          const cursor = await waitCursor();
-          if (!cursor) { done = true; return { value: undefined, done: true }; }
+          const result = await cursorIter.next();
+          if (result.done) { done = true; return { value: undefined, done: true }; }
 
-          const value = cursor.value;
-          cursor.continue(); // advance for NEXT pull
-
+          const value = result.value;
           if (self._filterFn && !self._filterFn(value)) continue;
 
           count++;
           return { value, done: false };
         }
       },
-      return() {
+      async return() {
         done = true;
-        return Promise.resolve({ value: undefined, done: true });
+        if (cursorIter && cursorIter.return) cursorIter.return();
+        return { value: undefined, done: true };
       },
       [Symbol.asyncIterator]() { return this; }
     };
@@ -171,20 +142,19 @@ export class QueryBuilder {
 
   async toArray() {
     this._assertStore();
-    // FAST PATH: no JS filter → use getAll(keyRange, count)
-    // getAll(range, count) returns first N in ascending order,
+    // FAST PATH: no JS filter → use getAll(range, limit)
+    // getAll returns first N in ascending order,
     // so limit fast path only works for forward direction.
     if (!this._filterFn && (this._limit == null || this._dir === 'next')) {
-      const tx = this._idb.transaction(this._store, 'readonly');
-      const store = tx.objectStore(this._store);
-      const source = this._index ? store.index(this._index) : store;
-      const results = await promisifyReq(
-        this._limit != null ? source.getAll(this._range, this._limit) : source.getAll(this._range)
-      );
+      const results = await this._conn.getAll(this._store, {
+        index: this._index,
+        range: this._range,
+        limit: this._limit,
+      });
       if (this._dir === 'prev') results.reverse();
       return results;
     }
-    // SLOW PATH: iterate with pull cursor (JS filter or desc+limit)
+    // SLOW PATH: iterate with cursor (JS filter or desc+limit)
     const results = [];
     for await (const item of this) results.push(item);
     return results;
@@ -197,12 +167,12 @@ export class QueryBuilder {
 
   async count() {
     this._assertStore();
-    // FAST PATH: use native IDB count when no JS filter
+    // FAST PATH: use native count when no JS filter
     if (!this._filterFn) {
-      const tx = this._idb.transaction(this._store, 'readonly');
-      const store = tx.objectStore(this._store);
-      const source = this._index ? store.index(this._index) : store;
-      return promisifyReq(source.count(this._range));
+      return this._conn.count(this._store, {
+        index: this._index,
+        range: this._range,
+      });
     }
     // SLOW PATH: must iterate (JS filter evaluates each record)
     let n = 0;
@@ -214,74 +184,67 @@ export class QueryBuilder {
 // ── StoreAccessor ────────────────────────────────────────
 
 export class StoreAccessor {
-  constructor(idb, storeName) {
-    this._idb = idb;
+  constructor(conn, storeName) {
+    this._conn = conn;
     this._store = storeName;
   }
 
   _assertStore() {
-    if (!this._idb.objectStoreNames.contains(this._store)) {
-      const available = Array.from(this._idb.objectStoreNames).join(', ');
+    if (!this._conn.hasStore(this._store)) {
+      const available = this._conn.storeNames.join(', ');
       throw new Error(
         `EasyDB: Store "${this._store}" not found. Available stores: ${available || '(none)'}`
       );
     }
   }
 
-  async _run(mode, fn) {
-    this._assertStore();
-    const tx = this._idb.transaction(this._store, mode);
-    const store = tx.objectStore(this._store);
-    const result = await promisifyReq(fn(store));
-    await promisifyTx(tx);
-    return result;
-  }
-
   // ── CRUD ──
 
-  async get(key) { return this._run('readonly', s => s.get(key)); }
-  async getAll() { return this._run('readonly', s => s.getAll()); }
-  async count() { return this._run('readonly', s => s.count()); }
+  async get(key) {
+    this._assertStore();
+    return this._conn.get(this._store, key);
+  }
+
+  async getAll() {
+    this._assertStore();
+    return this._conn.getAll(this._store);
+  }
+
+  async count() {
+    this._assertStore();
+    return this._conn.count(this._store);
+  }
 
   async getMany(keys) {
     this._assertStore();
-    const tx = this._idb.transaction(this._store, 'readonly');
-    const store = tx.objectStore(this._store);
-    return Promise.all(keys.map(k => promisifyReq(store.get(k))));
+    return this._conn.getMany(this._store, keys);
   }
 
   async put(value) {
     this._assertStore();
-    const tx = this._idb.transaction(this._store, 'readwrite');
-    const store = tx.objectStore(this._store);
-    const keyPath = store.keyPath;
-    const result = await promisifyReq(store.put(value));
-    await promisifyTx(tx);
-    _notify(this._idb.name, this._store, 'put', keyPath ? value[keyPath] : result, value);
-    return result;
+    const key = await this._conn.put(this._store, value);
+    _notify(this._conn.name, this._store, 'put', key, value);
+    return key;
   }
 
   async delete(key) {
-    const result = await this._run('readwrite', s => s.delete(key));
-    _notify(this._idb.name, this._store, 'delete', key, undefined);
-    return result;
+    this._assertStore();
+    await this._conn.delete(this._store, key);
+    _notify(this._conn.name, this._store, 'delete', key, undefined);
   }
 
   async clear() {
-    const result = await this._run('readwrite', s => s.clear());
-    _notify(this._idb.name, this._store, 'clear', null, undefined);
-    return result;
+    this._assertStore();
+    await this._conn.clear(this._store);
+    _notify(this._conn.name, this._store, 'clear', null, undefined);
   }
 
   async putMany(items) {
     this._assertStore();
-    const tx = this._idb.transaction(this._store, 'readwrite');
-    const store = tx.objectStore(this._store);
-    const keyPath = store.keyPath;
-    for (const item of items) store.put(item);
-    await promisifyTx(tx);
+    const keyPath = this._conn.getKeyPath(this._store);
+    await this._conn.putMany(this._store, items);
     for (const item of items) {
-      _notify(this._idb.name, this._store, 'put', keyPath ? item[keyPath] : undefined, item);
+      _notify(this._conn.name, this._store, 'put', keyPath ? item[keyPath] : undefined, item);
     }
     return items.length;
   }
@@ -290,17 +253,17 @@ export class StoreAccessor {
 
   where(indexName, value) {
     if (arguments.length === 2) {
-      return new QueryBuilder(this._idb, this._store, indexName, value);
+      return new QueryBuilder(this._conn, this._store, indexName, value);
     }
-    return new QueryBuilder(this._idb, this._store, indexName);
+    return new QueryBuilder(this._conn, this._store, indexName);
   }
 
-  all() { return new QueryBuilder(this._idb, this._store); }
+  all() { return new QueryBuilder(this._conn, this._store); }
 
   // ── Watch (async iterable of mutations) ──
 
   watch(opts = {}) {
-    const dbName = this._idb.name;
+    const dbName = this._conn.name;
     const storeName = this._store;
     const keyFilter = opts.key;
 
@@ -348,90 +311,49 @@ export class StoreAccessor {
 // ── EasyDB ───────────────────────────────────────────────
 
 export class EasyDB {
-  constructor(idb) {
-    this._idb = idb;
+  constructor(conn, adapter) {
+    this._conn = conn;
+    this._adapter = adapter;
     return new Proxy(this, {
       get(target, prop) {
         if (prop in target || typeof prop === 'symbol') return target[prop];
         if (prop === 'then' || prop === 'catch' || prop === 'finally') return undefined;
         if (prop.startsWith('_')) return target[prop];
-        return new StoreAccessor(idb, prop);
+        return new StoreAccessor(conn, prop);
       }
     });
   }
 
   get stores() {
-    return Array.from(this._idb.objectStoreNames);
+    return this._conn.storeNames;
+  }
+
+  get version() {
+    return this._conn.version;
   }
 
   store(name) {
-    return new StoreAccessor(this._idb, name);
+    return new StoreAccessor(this._conn, name);
   }
 
   async transaction(storeNames, fn) {
-    const tx = this._idb.transaction(storeNames, 'readwrite');
-    const txProxy = new Proxy({}, {
-      get(_, storeName) {
-        const store = tx.objectStore(storeName);
-        return {
-          get: (key) => promisifyReq(store.get(key)),
-          put: (val) => promisifyReq(store.put(val)),
-          delete: (key) => promisifyReq(store.delete(key)),
-          getAll: () => promisifyReq(store.getAll()),
-          count: () => promisifyReq(store.count()),
-        };
-      }
-    });
-    try {
-      await fn(txProxy);
-      await promisifyTx(tx);
-    } catch (err) {
-      try { tx.abort(); } catch (_) {}
-      throw err;
-    }
+    return this._conn.transaction(storeNames, fn);
   }
 
   close() {
-    _watchers.delete(this._idb.name);
-    this._idb.close();
+    _watchers.delete(this._conn.name);
+    this._conn.close();
   }
 
   static async open(name, options = {}) {
-    return new Promise((resolve, reject) => {
-      const version = options.version ?? 1;
-      const request = indexedDB.open(name, version);
-      request.onupgradeneeded = (event) => {
-        const db = request.result;
-        if (options.schema) {
-          options.schema({
-            createStore(storeName, opts = {}) {
-              if (!db.objectStoreNames.contains(storeName)) {
-                const store = db.createObjectStore(storeName, {
-                  keyPath: opts.key || null,
-                  autoIncrement: opts.autoIncrement || false,
-                });
-                if (opts.indexes) {
-                  for (const idx of opts.indexes) {
-                    const n = typeof idx === 'string' ? idx : idx.name;
-                    const o = typeof idx === 'string' ? {} : idx;
-                    store.createIndex(n, n, { unique: o.unique || false });
-                  }
-                }
-              }
-            },
-            getStore(storeName) {
-              return request.transaction.objectStore(storeName);
-            }
-          }, event.oldVersion);
-        }
-      };
-      request.onsuccess = () => resolve(new EasyDB(request.result));
-      request.onerror = () => reject(request.error);
-    });
+    const adapter = options.adapter ?? new IDBAdapter();
+    const conn = await adapter.open(name, options);
+    return new EasyDB(conn, adapter);
   }
 
-  static async destroy(name) {
-    return promisifyReq(indexedDB.deleteDatabase(name));
+  static async destroy(name, options = {}) {
+    const adapter = options.adapter ?? new IDBAdapter();
+    return adapter.destroy(name);
   }
 }
 

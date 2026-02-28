@@ -14,20 +14,20 @@ describe('EasyDB — open / close / destroy', () => {
   it('should open a database and return an EasyDB instance', async () => {
     ({ db, name } = await createTestDB());
     expect(db).toBeDefined();
-    expect(db._idb).toBeDefined();
-    expect(db._idb.name).toBe(name);
+    expect(db._conn).toBeDefined();
+    expect(db._conn.name).toBe(name);
   });
 
   it('should create stores defined in schema', async () => {
     ({ db, name } = await createTestDB());
-    const storeNames = Array.from(db._idb.objectStoreNames);
-    expect(storeNames).toContain('users');
-    expect(storeNames).toContain('orders');
+    expect(db.stores).toContain('users');
+    expect(db.stores).toContain('orders');
   });
 
   it('should create indexes defined in schema', async () => {
     ({ db, name } = await createTestDB());
-    const tx = db._idb.transaction('users', 'readonly');
+    // Access raw IDB to verify index creation
+    const tx = db._conn._idb.transaction('users', 'readonly');
     const store = tx.objectStore('users');
     const indexNames = Array.from(store.indexNames);
     expect(indexNames).toContain('role');
@@ -38,7 +38,7 @@ describe('EasyDB — open / close / destroy', () => {
 
   it('should support unique indexes', async () => {
     ({ db, name } = await createTestDB());
-    const tx = db._idb.transaction('users', 'readonly');
+    const tx = db._conn._idb.transaction('users', 'readonly');
     const store = tx.objectStore('users');
     const emailIdx = store.index('email');
     expect(emailIdx.unique).toBe(true);
@@ -52,7 +52,7 @@ describe('EasyDB — open / close / destroy', () => {
         db.createStore('items', { key: 'id' });
       }
     });
-    expect(d._idb.version).toBe(5);
+    expect(d.version).toBe(5);
     d.close();
     await EasyDB.destroy(dbName);
   });
@@ -63,7 +63,7 @@ describe('EasyDB — open / close / destroy', () => {
     await EasyDB.destroy(name);
     // Re-open should have no stores (fresh DB)
     const fresh = await EasyDB.open(name, { version: 1 });
-    expect(fresh._idb.objectStoreNames.length).toBe(0);
+    expect(fresh.stores.length).toBe(0);
     fresh.close();
     await EasyDB.destroy(name);
     db = null; // prevent afterEach double-destroy
