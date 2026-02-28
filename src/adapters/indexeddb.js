@@ -77,16 +77,20 @@ class IDBConnection {
     const store = tx.objectStore(storeName);
     const source = opts.index ? store.index(opts.index) : store;
     const range = toIDBRange(opts.range);
-    return promisifyReq(
+    const result = await promisifyReq(
       opts.limit != null ? source.getAll(range, opts.limit) : source.getAll(range)
     );
+    await promisifyTx(tx);
+    return result;
   }
 
   async count(storeName, opts = {}) {
     const tx = this._idb.transaction(storeName, 'readonly');
     const store = tx.objectStore(storeName);
     const source = opts.index ? store.index(opts.index) : store;
-    return promisifyReq(source.count(toIDBRange(opts.range)));
+    const result = await promisifyReq(source.count(toIDBRange(opts.range)));
+    await promisifyTx(tx);
+    return result;
   }
 
   async getMany(storeName, keys) {

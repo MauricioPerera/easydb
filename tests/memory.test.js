@@ -361,6 +361,32 @@ describe('MemoryAdapter — Transactions', () => {
     const user = await db.users.get(1);
     expect(user.name).toBe('Original');
   });
+
+  it('rollback restores autoIncrement counter', async () => {
+    const localAdapter = new MemoryAdapter();
+    const db = await EasyDB.open('mem-rollback-autoinc', {
+      adapter: localAdapter,
+      schema(s) { s.createStore('logs', { autoIncrement: true, key: 'id' }); }
+    });
+
+    // Insert 2 items → nextKey should be 3
+    await db.store('logs').put({ id: 1, msg: 'first' });
+    await db.store('logs').put({ id: 2, msg: 'second' });
+
+    // Failed transaction that would have advanced nextKey
+    await expect(
+      db.transaction(['logs'], async (tx) => {
+        await tx.logs.put({ id: 3, msg: 'third' });
+        throw new Error('rollback');
+      })
+    ).rejects.toThrow('rollback');
+
+    // nextKey should be restored — next insert should use id 3, not 4
+    await db.store('logs').put({ id: 3, msg: 'retry third' });
+    const item = await db.store('logs').get(3);
+    expect(item.msg).toBe('retry third');
+    expect(await db.store('logs').count()).toBe(3);
+  });
 });
 
 // ── Open / Close / Destroy ────────────────────────────────

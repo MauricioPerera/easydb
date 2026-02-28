@@ -168,9 +168,12 @@ class MemoryConnection {
     const snapshots = new Map();
     for (const name of storeNames) {
       const store = this._getStore(name);
-      snapshots.set(name, new Map(
-        Array.from(store.data.entries()).map(([k, v]) => [k, structuredClone(v)])
-      ));
+      snapshots.set(name, {
+        data: new Map(
+          Array.from(store.data.entries()).map(([k, v]) => [k, structuredClone(v)])
+        ),
+        nextKey: store.nextKey,
+      });
     }
 
     const self = this;
@@ -189,11 +192,12 @@ class MemoryConnection {
     try {
       await fn(proxy);
     } catch (err) {
-      // Rollback on error
+      // Rollback on error (data + metadata)
       for (const [name, snapshot] of snapshots) {
         const store = this._getStore(name);
         store.data.clear();
-        for (const [k, v] of snapshot) store.data.set(k, v);
+        for (const [k, v] of snapshot.data) store.data.set(k, v);
+        store.nextKey = snapshot.nextKey;
       }
       throw err;
     }
