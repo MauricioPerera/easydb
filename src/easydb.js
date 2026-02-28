@@ -16,11 +16,20 @@
  */
 
 import { IDBAdapter } from './adapters/indexeddb.js';
+import { MemoryAdapter } from './adapters/memory.js';
 
 // Re-export adapters for convenience
 export { IDBAdapter } from './adapters/indexeddb.js';
 export { MemoryAdapter } from './adapters/memory.js';
 export { D1Adapter } from './adapters/d1.js';
+export { KVAdapter } from './adapters/kv.js';
+
+// ── Adapter auto-detection ──────────────────────────────
+
+function _detectAdapter() {
+  if (typeof indexedDB !== 'undefined') return new IDBAdapter();
+  return new MemoryAdapter();
+}
 
 // ── Watch engine (with cross-tab BroadcastChannel) ──────
 
@@ -387,7 +396,7 @@ export class EasyDB {
   }
 
   static async open(name, options = {}) {
-    const adapter = options.adapter ?? new IDBAdapter();
+    const adapter = options.adapter ?? _detectAdapter();
 
     // Convert migrations map to a schema callback
     if (options.migrations && !options.schema) {
@@ -409,7 +418,7 @@ export class EasyDB {
   }
 
   static async destroy(name, options = {}) {
-    const adapter = options.adapter ?? new IDBAdapter();
+    const adapter = options.adapter ?? _detectAdapter();
     return adapter.destroy(name);
   }
 }

@@ -66,6 +66,13 @@ export declare class D1Adapter implements Adapter {
   destroy(name: string): Promise<void>;
 }
 
+/** Cloudflare KV adapter for Workers. */
+export declare class KVAdapter implements Adapter {
+  constructor(kv: any, opts?: { prefix?: string });
+  open(name: string, options?: OpenOptions): Promise<AdapterConnection>;
+  destroy(name: string): Promise<void>;
+}
+
 // ── QueryBuilder ─────────────────────────────────────────
 
 export interface QueryBuilder<T> extends AsyncIterable<T> {
@@ -175,12 +182,6 @@ export interface OpenOptions {
    * is a function that runs when upgrading past that version.
    * Auto-infers `version` from the highest key if not specified.
    * Cannot be used together with `schema`.
-   *
-   * @example
-   * migrations: {
-   *   1: (s) => { s.createStore('users', { key: 'id' }); },
-   *   2: (s) => { s.createStore('orders', { key: 'orderId' }); },
-   * }
    */
   migrations?: Record<number, (db: SchemaBuilder, oldVersion: number) => void>;
   /** Storage adapter. Defaults to IDBAdapter. */
@@ -199,6 +200,55 @@ export interface TransactionStore<T> {
 
 export type TransactionProxy = {
   [storeName: string]: TransactionStore<any>;
+};
+
+// ── Generic Schema Support ───────────────────────────────
+
+/**
+ * Schema type: maps store names to their record types.
+ *
+ * @example
+ * interface MySchema {
+ *   users: { id: number; name: string; role: string };
+ *   orders: { orderId: string; total: number };
+ * }
+ */
+type SchemaMap = Record<string, any>;
+
+/** Typed transaction proxy — each store key maps to a typed TransactionStore. */
+type TypedTransactionProxy<S extends SchemaMap> = {
+  [K in keyof S & string]: TransactionStore<S[K]>;
+};
+
+/** Fully typed EasyDB instance with schema-aware store accessors. */
+type TypedEasyDB<S extends SchemaMap> = {
+  /** The adapter connection. */
+  readonly _conn: AdapterConnection;
+  /** List of available store names. */
+  readonly stores: (keyof S & string)[];
+  /** Database version. */
+  readonly version: number;
+
+  /**
+   * Explicitly access a store by name (typed).
+   * Use this when the store name collides with an EasyDB method.
+   */
+  store<K extends keyof S & string>(name: K): StoreAccessor<S[K]>;
+
+  /**
+   * Run a multi-store readwrite transaction (typed).
+   * Automatically rolls back on throw.
+   */
+  transaction(
+    storeNames: (keyof S & string)[],
+    fn: (tx: TypedTransactionProxy<S>) => Promise<void>,
+  ): Promise<void>;
+
+  /** Close the database connection and clean up watchers. */
+  close(): void;
+} & {
+  /** Proxy: access stores as typed properties. */
+  readonly [K in keyof S & string]: StoreAccessor<S[K]>;
 };
 
 // ── EasyDB ───────────────────────────────────────────────
@@ -233,9 +283,23 @@ export declare class EasyDB {
   close(): void;
 
   /**
-   * Open or create a database.
+   * Open or create a database with a typed schema.
+   * Returns a Proxy — access stores as typed properties.
+   *
+   * @example
+   * interface Schema {
+   *   users: { id: number; name: string; role: string };
+   *   orders: { orderId: string; total: number };
+   * }
+   * const db = await EasyDB.open<Schema>('app', { ... });
+   * const user = await db.users.get(1);  // Schema['users'] | undefined
+   * const admins = await db.users.where('role', 'admin').toArray(); // Schema['users'][]
+   */
+  static open<S extends SchemaMap>(name: string, options?: OpenOptions): Promise<TypedEasyDB<S>>;
+
+  /**
+   * Open or create a database (untyped).
    * Returns a Proxy — access stores as properties (e.g., db.users).
-   * Pass options.adapter to use a non-default backend.
    */
   static open(name: string, options?: OpenOptions): Promise<EasyDB & { [storeName: string]: StoreAccessor<any> }>;
 

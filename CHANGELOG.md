@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.7.0 — 2026-02-28
+
+### New Features
+- **Adapter auto-detection** — When no `adapter` option is provided, EasyDB detects the runtime environment. Uses `IDBAdapter` when `indexedDB` is available (browser), falls back to `MemoryAdapter` otherwise (Node.js, SSR, serverless). D1/KV adapters still require explicit configuration.
+- **Vue composables** — `useQuery(query)` and `useRecord(store, key)` with Vue 3 `ref()` reactivity and auto-refresh via `watch()`. Supports reactive refs as query/key inputs. Vue 3 is an optional peer dependency.
+- **Svelte stores** — `queryStore(query)` and `recordStore(store, key)` implement the Svelte store contract (`subscribe`). Lazy watcher setup (only when subscribed). Works with Svelte 3/4/5.
+
+### Updated
+- ROADMAP.md updated to reflect Phase 0–4 completion status.
+- 289 tests across 12 test files (4 adapters + 3 framework integrations).
+- Sub-path exports: `@aspect/easydb/vue`, `@aspect/easydb/svelte`.
+- Optional peer dependencies for Vue (>=3) and Svelte (>=3).
+
+## v0.6.0 — 2026-02-28
+
+### New Features
+- **KV Adapter** — Cloudflare Workers KV backend. Stores records as individual KV entries with prefix-based namespacing. Supports autoIncrement, unique indexes, range queries (JS-side filtering), and best-effort transactions with rollback.
+- **React hooks** — `useQuery(query)` and `useRecord(store, key)` with auto-refresh via `watch()`. Returns `{ data, loading, error, refresh }`. React is an optional peer dependency.
+- **Generic TypeScript** — `EasyDB.open<Schema>()` returns fully typed store accessors. `db.users.get(1)` returns `Promise<Schema['users'] | undefined>`. Typed transactions, typed `store()`.
+
+### Updated
+- TypeScript declarations for KVAdapter and React hooks.
+- 275 tests across 10 test files (4 adapters).
+- Sub-path exports: `@aspect/easydb/adapters/kv`, `@aspect/easydb/react`.
+
 ## v0.5.0 — 2026-02-28
 
 ### New Features
