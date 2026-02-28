@@ -1,6 +1,6 @@
 {
   "name": "@rckflr/easydb",
-  "version": "0.7.0",
+  "version": "1.0.0",
   "description": "Multi-backend storage with async/await, async iterables, and modern JavaScript — IndexedDB, Memory, D1/SQLite",
   "main": "src/easydb.js",
   "module": "src/easydb.js",
@@ -40,6 +40,7 @@
   },
   "files": [
     "src/",
+    "dist/",
     "README.md",
     "LICENSE"
   ],
@@ -48,6 +49,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "metrics": "echo \"Core: $(wc -l < src/easydb.js) LOC | IDB: $(wc -l < src/adapters/indexeddb.js) LOC | Mem: $(wc -l < src/adapters/memory.js) LOC | D1: $(wc -l < src/adapters/d1.js) LOC | Browser gzip: $(cat src/easydb.js src/adapters/indexeddb.js | gzip -c | wc -c)B | Workers gzip: $(cat src/easydb.js src/adapters/d1.js | gzip -c | wc -c)B\"",
+    "build": "node scripts/build.js",
     "bench": "node benchmarks/run.js",
     "demo": "open demo/index.html"
   },
@@ -84,8 +86,8 @@
   },
   "peerDependencies": {
     "react": ">=18",
-    "vue": ">=3",
-    "svelte": ">=3"
+    "svelte": ">=3",
+    "vue": ">=3"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -100,6 +102,7 @@
   },
   "devDependencies": {
     "better-sqlite3": "^12.6.2",
+    "esbuild": "^0.27.3",
     "fake-indexeddb": "^6.2.5",
     "vitest": "^4.0.18"
   }

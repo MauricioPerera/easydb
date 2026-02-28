@@ -326,17 +326,13 @@ rollback)   + range          BroadcastChannel)
 
 ## Bundle Size
 
-| Component | LOC |
-|-----------|-----|
-| Core | 407 |
-| IDB Adapter | 244 |
-| Memory Adapter | 290 |
-| D1 Adapter | 421 |
+| CDN Bundle | Raw | Gzip |
+|------------|-----|------|
+| `easydb.mjs.js` (ESM) | 13.7 KB | **4.4 KB** |
+| `easydb.iife.js` | 14.1 KB | 4.6 KB |
+| `easydb.umd.js` | 14.4 KB | 4.7 KB |
 
-| Bundle | Gzip |
-|--------|------|
-| Browser (Core + IDB) | ~4.9 KB |
-| Workers (Core + D1) | ~6.4 KB |
+Build CDN bundles: `npm run build`
 
 ## Known Limitations
 
@@ -370,13 +366,21 @@ rollback)   + range          BroadcastChannel)
 
 **Use SQLite WASM when:** You need JOINs, GROUP BY, subqueries, or complex analytical queries in the browser.
 
+## Documentation
+
+- [Browser Compatibility](docs/BROWSER_COMPATIBILITY.md) — supported browsers, runtimes, and CDN usage
+- [Migration Guide](docs/MIGRATION.md) — migrating from raw IndexedDB or Dexie.js
+- [Adapter Comparison](docs/ADAPTERS.md) — choosing the right adapter for your use case
+- [Contributing](docs/CONTRIBUTING.md) — how to contribute to EasyDB
+
 ## Development
 
 ```bash
 git clone https://github.com/MauricioPerera/easydb.git
 cd easydb
 npm install
-npm test            # Run all 224 tests
+npm test            # Run all 289 tests
+npm run build       # Generate CDN bundles (dist/)
 npm run metrics     # Show LOC and gzip sizes
 ```
 
