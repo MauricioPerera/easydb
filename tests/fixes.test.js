@@ -235,7 +235,7 @@ describe('Fix: version ?? operator', () => {
     const db = await EasyDB.open(dbName, {
       schema(db) { db.createStore('items', { key: 'id' }); }
     });
-    expect(db._idb.version).toBe(1);
+    expect(db.version).toBe(1);
     db.close();
     await EasyDB.destroy(dbName);
   });
@@ -246,7 +246,7 @@ describe('Fix: version ?? operator', () => {
       version: 3,
       schema(db) { db.createStore('items', { key: 'id' }); }
     });
-    expect(db._idb.version).toBe(3);
+    expect(db.version).toBe(3);
     db.close();
     await EasyDB.destroy(dbName);
   });

@@ -1,7 +1,7 @@
 {
   "name": "@aspect/easydb",
-  "version": "0.3.0",
-  "description": "IndexedDB reimagined with async/await, async iterables, and modern JavaScript primitives",
+  "version": "0.4.0",
+  "description": "Multi-backend storage with async/await, async iterables, and modern JavaScript — IndexedDB, Memory, and more",
   "main": "src/easydb.js",
   "module": "src/easydb.js",
   "types": "src/easydb.d.ts",
@@ -11,6 +11,12 @@
       "import": "./src/easydb.js",
       "types": "./src/easydb.d.ts",
       "default": "./src/easydb.js"
+    },
+    "./adapters/indexeddb": {
+      "import": "./src/adapters/indexeddb.js"
+    },
+    "./adapters/memory": {
+      "import": "./src/adapters/memory.js"
     }
   },
   "files": [
@@ -22,7 +28,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "metrics": "echo \"Raw: $(wc -c < src/easydb.js) bytes | Gzip: $(gzip -c src/easydb.js | wc -c) bytes | LOC: $(wc -l < src/easydb.js)\"",
+    "metrics": "echo \"Core: $(wc -c < src/easydb.js) bytes ($(wc -l < src/easydb.js) LOC) | IDB: $(wc -c < src/adapters/indexeddb.js) bytes ($(wc -l < src/adapters/indexeddb.js) LOC) | Mem: $(wc -c < src/adapters/memory.js) bytes ($(wc -l < src/adapters/memory.js) LOC) | Total: $(cat src/easydb.js src/adapters/indexeddb.js src/adapters/memory.js | wc -c) bytes | Gzip: $(cat src/easydb.js src/adapters/indexeddb.js src/adapters/memory.js | gzip -c | wc -c) bytes\"",
     "demo": "open demo/index.html"
   },
   "keywords": [
@@ -35,7 +41,10 @@
     "pull-cursor",
     "range-query",
     "watch",
-    "reactive"
+    "reactive",
+    "adapter",
+    "memory-adapter",
+    "multi-backend"
   ],
   "author": "Mauricio Perera <https://automators.work>",
   "license": "MIT",
