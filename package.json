@@ -21,6 +21,9 @@
     },
     "./adapters/d1": {
       "import": "./src/adapters/d1.js"
+    },
+    "./adapters/kv": {
+      "import": "./src/adapters/kv.js"
     }
   },
   "files": [

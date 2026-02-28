@@ -21,6 +21,7 @@ import { IDBAdapter } from './adapters/indexeddb.js';
 export { IDBAdapter } from './adapters/indexeddb.js';
 export { MemoryAdapter } from './adapters/memory.js';
 export { D1Adapter } from './adapters/d1.js';
+export { KVAdapter } from './adapters/kv.js';
 
 // ── Watch engine (with cross-tab BroadcastChannel) ──────
 
