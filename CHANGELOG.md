@@ -6,6 +6,8 @@
 - **D1 Adapter** — Cloudflare Workers D1/SQLite backend. Each store maps to a SQL table with keyPath as primary key, `_value` column for full JSON, and separate columns for indexed fields.
 - **Cross-tab watch** — Watch events broadcast to other browser tabs via BroadcastChannel. Graceful degradation when BroadcastChannel is unavailable.
 - **Migrations API** — `migrations: { 1: fn, 2: fn }` as syntactic sugar over `schema(builder, oldVersion)`. Auto-infers version from highest key. Only runs migrations newer than current version.
+- **Pagination** — `skip(n)` and `page(pageNum, pageSize)` on QueryBuilder. Fast path uses `getAll(skip+limit)` then slices. Works with `filter()`, `desc()`, `where()`.
+- **Benchmarks** — `npm run bench` measures EasyDB vs raw IndexedDB overhead.
 
 ### Hardening
 - D1 `transaction()` snapshots tables and rolls back on error.
@@ -15,7 +17,7 @@
 - IDB `getMany()` now awaits transaction completion for consistency.
 
 ### Updated
-- TypeScript declarations for D1Adapter, migrations, and cross-tab watch.
+- TypeScript declarations for D1Adapter, migrations, cross-tab watch, and pagination.
 - CI pipeline with D1 adapter metrics.
 - README rewrite for multi-backend release.
 
