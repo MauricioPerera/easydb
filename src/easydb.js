@@ -71,6 +71,7 @@ export class QueryBuilder {
       ? { lower: keyValue, upper: keyValue, lowerOpen: false, upperOpen: false }
       : null;
     this._limit = null;
+    this._skip = null;
     this._dir = 'next';
     this._filterFn = null;
     this._hasExactKey = keyValue != null;
@@ -89,6 +90,7 @@ export class QueryBuilder {
     const q = new QueryBuilder(this._conn, this._store, this._index);
     q._range = this._range;
     q._limit = this._limit;
+    q._skip = this._skip;
     q._dir = this._dir;
     q._filterFn = this._filterFn;
     q._hasExactKey = this._hasExactKey;
@@ -98,6 +100,8 @@ export class QueryBuilder {
   // ── Chainable modifiers ──
 
   limit(n) { const q = this._clone(); q._limit = n; return q; }
+  skip(n) { const q = this._clone(); q._skip = n; return q; }
+  page(pageNum, pageSize) { return this.skip((pageNum - 1) * pageSize).limit(pageSize); }
   desc() { const q = this._clone(); q._dir = 'prev'; return q; }
   asc() { const q = this._clone(); q._dir = 'next'; return q; }
 
@@ -128,7 +132,9 @@ export class QueryBuilder {
     const self = this;
     let cursorIter = null;
     let count = 0;
+    let skipped = 0;
     let done = false;
+    const skipN = self._skip || 0;
 
     return {
       async next() {
@@ -154,6 +160,8 @@ export class QueryBuilder {
           const value = result.value;
           if (self._filterFn && !self._filterFn(value)) continue;
 
+          if (skipped < skipN) { skipped++; continue; }
+
           count++;
           return { value, done: false };
         }
@@ -171,17 +179,19 @@ export class QueryBuilder {
 
   async toArray() {
     this._assertStore();
-    // FAST PATH: no JS filter → use getAll(range, limit)
+    // FAST PATH: no JS filter → use getAll(range, limit+skip) then slice
     // getAll returns first N in ascending order,
     // so limit fast path only works for forward direction.
+    const skipN = this._skip || 0;
     if (!this._filterFn && (this._limit == null || this._dir === 'next')) {
+      const fetchLimit = this._limit != null ? this._limit + skipN : null;
       const results = await this._conn.getAll(this._store, {
         index: this._index,
         range: this._range,
-        limit: this._limit,
+        limit: fetchLimit,
       });
       if (this._dir === 'prev') results.reverse();
-      return results;
+      return skipN ? results.slice(skipN) : results;
     }
     // SLOW PATH: iterate with cursor (JS filter or desc+limit)
     const results = [];
