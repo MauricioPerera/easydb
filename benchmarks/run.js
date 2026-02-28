@@ -8,6 +8,8 @@
  */
 import 'fake-indexeddb/auto';
 import { EasyDB, MemoryAdapter } from '../src/easydb.js';
+import { LocalStorageAdapter } from '../src/adapters/localstorage.js';
+import { SQLiteAdapter } from '../src/adapters/sqlite.js';
 
 const N = 1000; // records per benchmark
 const RUNS = 5; // runs per benchmark (take median)
@@ -284,12 +286,119 @@ async function benchmarkMemory() {
   }
 }
 
+async function benchmarkLocalStorage() {
+  // Mock localStorage for Node.js
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k),
+    clear: () => store.clear(),
+    get length() { return store.size; },
+    key: (i) => [...store.keys()][i] ?? null,
+  };
+
+  const items = Array.from({ length: N }, (_, i) => makeUser(i + 1));
+  const results = [];
+
+  results.push(await bench('LS putMany', async () => {
+    store.clear();
+    const db = await EasyDB.open(`bench-ls-pm-${Date.now()}`, {
+      adapter: new LocalStorageAdapter(),
+      schema: s => s.createStore('users', { key: 'id', indexes: ['age', 'role'] })
+    });
+    await db.users.putMany(items);
+    db.close();
+  }));
+
+  // Seed
+  store.clear();
+  const db = await EasyDB.open(`bench-ls-read`, {
+    adapter: new LocalStorageAdapter(),
+    schema: s => s.createStore('users', { key: 'id', indexes: ['age', 'role'] })
+  });
+  await db.users.putMany(items);
+
+  results.push(await bench('LS get ×' + N, async () => {
+    for (let i = 1; i <= N; i++) await db.users.get(i);
+  }));
+
+  results.push(await bench('LS toArray()', async () => {
+    await db.users.all().toArray();
+  }));
+
+  results.push(await bench('LS count()', async () => {
+    await db.users.count();
+  }));
+
+  results.push(await bench('LS page(5, 20)', async () => {
+    await db.users.all().page(5, 20).toArray();
+  }));
+
+  db.close();
+
+  console.log(`\n── LocalStorage Adapter (${N} records, median of ${RUNS}) ${'─'.repeat(12)}`);
+  console.log('Operation'.padEnd(28) + 'Time (ms)'.padStart(12) + 'ops/s'.padStart(12));
+  console.log('─'.repeat(52));
+  for (const r of results) {
+    console.log(r.label.padEnd(28) + r.ms.toFixed(2).padStart(12) + String(r.opsPerSec).padStart(12));
+  }
+}
+
+async function benchmarkSQLite() {
+  const items = Array.from({ length: N }, (_, i) => makeUser(i + 1));
+  const results = [];
+
+  results.push(await bench('SQLite putMany', async () => {
+    const db = await EasyDB.open(`bench-sqlite-pm-${Date.now()}`, {
+      adapter: new SQLiteAdapter(':memory:'),
+      schema: s => s.createStore('users', { key: 'id', indexes: ['age', 'role'] })
+    });
+    await db.users.putMany(items);
+    db.close();
+  }));
+
+  // Seed
+  const db = await EasyDB.open(`bench-sqlite-read`, {
+    adapter: new SQLiteAdapter(':memory:'),
+    schema: s => s.createStore('users', { key: 'id', indexes: ['age', 'role'] })
+  });
+  await db.users.putMany(items);
+
+  results.push(await bench('SQLite get ×' + N, async () => {
+    for (let i = 1; i <= N; i++) await db.users.get(i);
+  }));
+
+  results.push(await bench('SQLite toArray()', async () => {
+    await db.users.all().toArray();
+  }));
+
+  results.push(await bench('SQLite count()', async () => {
+    await db.users.count();
+  }));
+
+  results.push(await bench('SQLite page(5, 20)', async () => {
+    await db.users.all().page(5, 20).toArray();
+  }));
+
+  db.close();
+
+  console.log(`\n── SQLite Adapter (${N} records, median of ${RUNS}) ${'─'.repeat(18)}`);
+  console.log('Operation'.padEnd(28) + 'Time (ms)'.padStart(12) + 'ops/s'.padStart(12));
+  console.log('─'.repeat(52));
+  for (const r of results) {
+    console.log(r.label.padEnd(28) + r.ms.toFixed(2).padStart(12) + String(r.opsPerSec).padStart(12));
+  }
+}
+
 // ── Run ──
 
 console.log(`\nEasyDB Benchmarks — ${N} records, ${RUNS} runs each (median)\n`);
 
 await benchmarkIDB();
 await benchmarkMemory();
+await benchmarkLocalStorage();
+await benchmarkSQLite();
 
 console.log('\nNote: Uses fake-indexeddb in Node. Real browser performance will differ.');
 console.log('These benchmarks measure abstraction overhead, not absolute speed.\n');

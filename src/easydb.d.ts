@@ -32,7 +32,7 @@ export interface AdapterConnection {
   put(storeName: string, value: any): Promise<any>;
   delete(storeName: string, key: any): Promise<void>;
   clear(storeName: string): Promise<void>;
-  putMany(storeName: string, items: any[]): Promise<void>;
+  putMany(storeName: string, items: any[]): Promise<any[]>;
 
   cursor(storeName: string, opts?: { index?: string; range?: Range; direction?: 'next' | 'prev' }): AsyncGenerator<any>;
 

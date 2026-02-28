@@ -14,7 +14,7 @@
  *
  * Usage in Cloudflare Workers:
  *
- *   import EasyDB, { KVAdapter } from 'easydb';
+ *   import EasyDB, { KVAdapter } from '@rckflr/easydb';
  *
  *   export default {
  *     async fetch(request, env) {

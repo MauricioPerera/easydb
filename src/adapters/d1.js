@@ -7,7 +7,7 @@
  *
  * Usage in Cloudflare Workers:
  *
- *   import EasyDB, { D1Adapter } from 'easydb';
+ *   import EasyDB, { D1Adapter } from '@rckflr/easydb';
  *
  *   export default {
  *     async fetch(request, env) {

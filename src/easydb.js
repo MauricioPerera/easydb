@@ -7,7 +7,9 @@
  * Supports multiple storage backends via adapters:
  * - IDBAdapter (browser IndexedDB, default)
  * - MemoryAdapter (testing, SSR, serverless)
- * - D1Adapter (Cloudflare Workers D1/SQLite)
+ * - D1Adapter / KVAdapter (Cloudflare Workers)
+ * - SQLiteAdapter (better-sqlite3), PostgresAdapter, RedisAdapter
+ * - TursoAdapter (libSQL), LocalStorageAdapter
  *
  * Zero dependencies. Works in any modern browser or runtime.
  *

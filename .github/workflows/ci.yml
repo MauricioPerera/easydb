@@ -36,6 +36,12 @@ jobs:
           IDB_LOC=$(wc -l < src/adapters/indexeddb.js)
           MEM_LOC=$(wc -l < src/adapters/memory.js)
           D1_LOC=$(wc -l < src/adapters/d1.js)
+          KV_LOC=$(wc -l < src/adapters/kv.js)
+          LS_LOC=$(wc -l < src/adapters/localstorage.js)
+          PG_LOC=$(wc -l < src/adapters/postgres.js)
+          REDIS_LOC=$(wc -l < src/adapters/redis.js)
+          TURSO_LOC=$(wc -l < src/adapters/turso.js)
+          SQLITE_LOC=$(wc -l < src/adapters/sqlite.js)
           CORE_IDB=$(cat src/easydb.js src/adapters/indexeddb.js | gzip -c | wc -c)
           CORE_MEM=$(cat src/easydb.js src/adapters/memory.js | gzip -c | wc -c)
           CORE_D1=$(cat src/easydb.js src/adapters/d1.js | gzip -c | wc -c)
@@ -46,6 +52,12 @@ jobs:
           echo "| IDB Adapter | ${IDB_LOC} | $(wc -c < src/adapters/indexeddb.js) bytes |" >> $GITHUB_STEP_SUMMARY
           echo "| Memory Adapter | ${MEM_LOC} | $(wc -c < src/adapters/memory.js) bytes |" >> $GITHUB_STEP_SUMMARY
           echo "| D1 Adapter | ${D1_LOC} | $(wc -c < src/adapters/d1.js) bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| KV Adapter | ${KV_LOC} | $(wc -c < src/adapters/kv.js) bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| LocalStorage Adapter | ${LS_LOC} | $(wc -c < src/adapters/localstorage.js) bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| PostgreSQL Adapter | ${PG_LOC} | $(wc -c < src/adapters/postgres.js) bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| Redis Adapter | ${REDIS_LOC} | $(wc -c < src/adapters/redis.js) bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| Turso Adapter | ${TURSO_LOC} | $(wc -c < src/adapters/turso.js) bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| SQLite Adapter | ${SQLITE_LOC} | $(wc -c < src/adapters/sqlite.js) bytes |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Bundle | Gzip |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|------|" >> $GITHUB_STEP_SUMMARY
@@ -54,6 +66,7 @@ jobs:
           echo "| Core + D1 (Workers) | ${CORE_D1} bytes |" >> $GITHUB_STEP_SUMMARY
           echo ""
           echo "Core: ${CORE_LOC} LOC | IDB: ${IDB_LOC} LOC | Mem: ${MEM_LOC} LOC | D1: ${D1_LOC} LOC"
+          echo "KV: ${KV_LOC} LOC | LS: ${LS_LOC} LOC | PG: ${PG_LOC} LOC | Redis: ${REDIS_LOC} LOC | Turso: ${TURSO_LOC} LOC | SQLite: ${SQLITE_LOC} LOC"
           echo "Browser (Core+IDB): ${CORE_IDB}B gzip | Workers (Core+D1): ${CORE_D1}B gzip"
       - name: Test coverage
         run: npx vitest run --coverage --coverage.reporter=text 2>&1 | tail -20

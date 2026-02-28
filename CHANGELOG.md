@@ -1,5 +1,39 @@
 # Changelog
 
+## v1.1.0 — 2026-02-28
+
+### New Storage Adapters
+- **LocalStorageAdapter** — browser localStorage for simple persistence
+- **SQLiteAdapter** — better-sqlite3 with WAL mode and SAVEPOINT transactions
+- **PostgresAdapter** — PostgreSQL via pg/node-postgres or Neon serverless
+- **RedisAdapter** — Redis via ioredis or @upstash/redis
+- **TursoAdapter** — Turso/libSQL for edge-replicated SQLite
+
+### New Framework Integrations
+- **Angular** — `injectEasyDB()` with Angular 16+ signals
+- **Solid.js** — `createEasyDB()` with Solid signals
+- **Preact** — `useEasyDB()` with Preact hooks
+- **Lit** — `EasyDBController` ReactiveController for web components
+
+### Testing
+- Adapter conformance test suite covering Memory, localStorage, SQLite
+- Framework integration tests for Angular, Solid, Preact, React, Vue
+- 662 tests total (up from 308)
+
+### Fixed
+- `empty-adapter.js` now stubs all 6 server adapters (was missing Postgres, Redis, Turso, SQLite)
+- `AdapterConnection.putMany` return type corrected from `Promise<void>` to `Promise<any[]>`
+- Stale import paths in D1 and KV adapter doc comments
+
+### Changed
+- Per-adapter TypeScript declaration files for direct imports
+- Updated README with all 9 adapters and 7 framework integrations
+- Updated `docs/ADAPTERS.md` with comprehensive guide for all adapters
+- CI workflow metrics now include all adapters
+- Benchmarks now include SQLite and localStorage adapters
+- Added missing keywords to package.json (react, vue, svelte)
+- Usage examples (`examples/adapters.js`, `examples/frameworks.js`)
+
 ## v1.0.1 — 2026-02-28
 
 ### Bug Fixes

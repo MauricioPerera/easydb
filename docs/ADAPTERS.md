@@ -4,17 +4,16 @@ EasyDB supports multiple storage backends via its adapter architecture. All adap
 
 ## Quick Comparison
 
-| | IDBAdapter | MemoryAdapter | D1Adapter | KVAdapter |
-|---|---|---|---|---|
-| **Runtime** | Browser | Anywhere | Cloudflare Workers | Cloudflare Workers |
-| **Persistence** | Persistent | In-memory only | Persistent (SQLite) | Persistent (KV) |
-| **Capacity** | ~50MB–unlimited | RAM-limited | 10GB per DB | Unlimited |
-| **Best for** | Browser apps | Testing, SSR | Edge CRUD apps | Config, sessions |
-| **Gzip (+ core)** | 4.4 KB | 5.3 KB | 6.6 KB | 6.3 KB |
-| **Range queries** | Native (IDBKeyRange) | JS sort + slice | SQL WHERE | JS-side |
-| **Transactions** | Native IDB transactions | Snapshot + rollback | Snapshot + rollback | Best-effort rollback |
-| **Watch/reactivity** | Yes + cross-tab | Yes (local only) | Yes (local only) | Yes (local only) |
-| **Indexes** | Native | Simulated (Map) | SQL indexes | Prefix-based |
+| | IDBAdapter | MemoryAdapter | D1Adapter | KVAdapter | LocalStorageAdapter | SQLiteAdapter | PostgresAdapter | RedisAdapter | TursoAdapter |
+|---|---|---|---|---|---|---|---|---|---|
+| **Runtime** | Browser | Anywhere | CF Workers | CF Workers | Browser | Node.js | Node.js | Node.js | Node.js / Edge |
+| **Persistence** | Persistent | In-memory | Persistent | Persistent | Persistent | Persistent | Persistent | Persistent | Persistent |
+| **Capacity** | ~50MB+ | RAM | 10GB | Unlimited | ~5MB | Unlimited | Unlimited | RAM/Disk | Unlimited |
+| **Best for** | Browser apps | Testing, SSR | Edge CRUD | Config, sessions | Simple browser | Server apps | Production | Caching, queues | Edge databases |
+| **Range queries** | Native | JS sort | SQL WHERE | JS-side | JS-side | SQL WHERE | SQL WHERE | Sorted sets | SQL WHERE |
+| **Transactions** | Native IDB | Snapshot | Snapshot | Best-effort | Snapshot | SAVEPOINT | BEGIN/COMMIT | MULTI/EXEC | Snapshot |
+| **Watch** | Yes + cross-tab | Yes (local) | Yes (local) | Yes (local) | Yes (local) | Yes (local) | Yes (local) | Yes (local) | Yes (local) |
+| **Indexes** | Native | Simulated | SQL indexes | Prefix-based | Simulated | SQL indexes | SQL indexes | Sorted sets | SQL indexes |
 
 ## IDBAdapter (Browser)
 
@@ -142,21 +141,194 @@ export default {
 
 ---
 
+## LocalStorageAdapter (Browser)
+
+Uses the browser's `localStorage` API. Stores entire database as a JSON blob.
+
+```javascript
+import { EasyDB } from '@rckflr/easydb';
+import { LocalStorageAdapter } from '@rckflr/easydb/adapters/localstorage';
+
+const db = await EasyDB.open('app', {
+  adapter: new LocalStorageAdapter(),
+  schema(s) {
+    s.createStore('settings', { key: 'name' });
+  }
+});
+```
+
+**Strengths:**
+- Dead simple — synchronous read/write under the hood
+- Works in all browsers including older ones
+- Data survives page reloads
+- Small footprint
+
+**Limitations:**
+- ~5MB storage limit per origin
+- Synchronous blocking API (localStorage itself)
+- Entire database serialized/deserialized on each operation
+- Not suitable for large datasets
+
+**Best for:** Small user preferences, simple settings, prototypes where IndexedDB is overkill.
+
+---
+
+## SQLiteAdapter (Node.js)
+
+Uses `better-sqlite3` for file-based or in-memory SQLite storage.
+
+```javascript
+import { EasyDB } from '@rckflr/easydb';
+import { SQLiteAdapter } from '@rckflr/easydb/adapters/sqlite';
+
+const db = await EasyDB.open('app', {
+  adapter: new SQLiteAdapter('./data.db'),
+  schema(s) {
+    s.createStore('users', { key: 'id', indexes: ['email'] });
+  }
+});
+```
+
+**Strengths:**
+- Fast file-based persistence (WAL mode enabled)
+- Real SQL queries for range operations
+- True transaction support via SAVEPOINT
+- In-memory mode with `:memory:` for testing
+- No external services required
+
+**Limitations:**
+- Node.js only (requires `better-sqlite3` native module)
+- Single-process access (file locking)
+- Not available in browsers or edge runtimes
+
+**Best for:** CLI tools, Electron apps, local-first Node.js services, embedded databases.
+
+---
+
+## PostgresAdapter (Node.js)
+
+Connects to PostgreSQL via `pg` (node-postgres) or Neon serverless driver.
+
+```javascript
+import { EasyDB } from '@rckflr/easydb';
+import { PostgresAdapter } from '@rckflr/easydb/adapters/postgres';
+import pg from 'pg';
+
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const db = await EasyDB.open('app', {
+  adapter: new PostgresAdapter(pool),
+  schema(s) {
+    s.createStore('users', { key: 'id', indexes: ['email'] });
+  }
+});
+```
+
+**Strengths:**
+- Production-grade relational database
+- True ACID transactions via BEGIN/COMMIT/ROLLBACK
+- SQL-native range queries and indexes
+- Works with connection pools, managed databases (Neon, Supabase, RDS)
+- Custom schema support (`new PostgresAdapter(pool, { schema: 'myapp' })`)
+
+**Limitations:**
+- Requires running PostgreSQL server
+- Higher latency than in-process databases
+- No browser support
+
+**Best for:** Production APIs, multi-tenant SaaS backends, any app already using PostgreSQL.
+
+---
+
+## RedisAdapter (Node.js)
+
+Connects to Redis via `ioredis` or `@upstash/redis`.
+
+```javascript
+import { EasyDB } from '@rckflr/easydb';
+import { RedisAdapter } from '@rckflr/easydb/adapters/redis';
+import Redis from 'ioredis';
+
+const redis = new Redis(process.env.REDIS_URL);
+const db = await EasyDB.open('app', {
+  adapter: new RedisAdapter(redis),
+  schema(s) {
+    s.createStore('sessions', { key: 'sid' });
+  }
+});
+```
+
+**Strengths:**
+- Extremely fast in-memory store
+- Range queries via sorted sets
+- MULTI/EXEC for atomic operations
+- Custom key prefix (`new RedisAdapter(redis, { prefix: 'myapp:' })`)
+- Works with Upstash for serverless Redis
+
+**Limitations:**
+- Data in memory by default (persistence via RDB/AOF)
+- Requires running Redis server
+- No browser support
+
+**Best for:** Session storage, caching layers, real-time leaderboards, rate limiting, message queues.
+
+---
+
+## TursoAdapter (Node.js / Edge)
+
+Connects to Turso (libSQL) via `@libsql/client`. Works with both local SQLite and remote Turso databases.
+
+```javascript
+import { EasyDB } from '@rckflr/easydb';
+import { TursoAdapter } from '@rckflr/easydb/adapters/turso';
+import { createClient } from '@libsql/client';
+
+const client = createClient({
+  url: process.env.TURSO_URL,
+  authToken: process.env.TURSO_TOKEN,
+});
+const db = await EasyDB.open('app', {
+  adapter: new TursoAdapter(client),
+  schema(s) {
+    s.createStore('users', { key: 'id', indexes: ['role'] });
+  }
+});
+```
+
+**Strengths:**
+- SQLite at the edge with global replication
+- Embedded replicas for ultra-low-latency reads
+- SQL-native range queries and indexes
+- Works locally (file:path or :memory:) and remotely
+- Compatible with any libSQL client
+
+**Limitations:**
+- Transactions are emulated (snapshot + rollback)
+- Requires Turso account for remote databases
+- Newer service — smaller ecosystem than PostgreSQL
+
+**Best for:** Edge-native applications, multi-region deployments, apps needing SQLite simplicity with global distribution.
+
+---
+
 ## Choosing an Adapter
 
 ```
 Is your app in a browser?
-  └─ Yes → IDBAdapter (default, auto-detected)
+  ├─ Need robust storage (>5MB)? → IDBAdapter (default, auto-detected)
+  └─ Just need small settings? → LocalStorageAdapter
 
 Is it a Cloudflare Worker?
-  └─ Need SQL-like queries / transactions? → D1Adapter
+  ├─ Need SQL-like queries / transactions? → D1Adapter
   └─ Need global distribution / simple KV? → KVAdapter
+
+Is it Node.js?
+  ├─ Already have PostgreSQL? → PostgresAdapter
+  ├─ Need Redis for caching/sessions? → RedisAdapter
+  ├─ Want embedded SQLite (no server)? → SQLiteAdapter
+  └─ Need edge-replicated SQLite? → TursoAdapter
 
 Is it a test / SSR / prototype?
   └─ Yes → MemoryAdapter
-
-Is it Node.js / Deno / Bun (persistent)?
-  └─ Write a custom adapter (see CONTRIBUTING.md)
 ```
 
 ## Adapter Auto-Detection
@@ -168,4 +340,4 @@ If you don't specify an adapter, EasyDB picks one automatically:
 | Browser (has `indexedDB`) | IDBAdapter |
 | Node.js / Deno / Bun | MemoryAdapter |
 
-For Cloudflare adapters (D1, KV), you must pass the adapter explicitly because they require runtime bindings (`env.DB`, `env.MY_KV`).
+For all other adapters, you must pass the adapter explicitly because they require runtime bindings or connections.
