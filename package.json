@@ -1,6 +1,6 @@
 {
   "name": "@rckflr/easydb",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Multi-backend storage with async/await, async iterables, and modern JavaScript — IndexedDB, Memory, D1/SQLite, PostgreSQL, Redis, Turso, localStorage",
   "main": "src/easydb.js",
   "module": "src/easydb.js",
@@ -76,6 +76,10 @@
     "./lit": {
       "import": "./src/lit.js",
       "types": "./src/lit.d.ts"
+    },
+    "./sync": {
+      "import": "./src/sync.js",
+      "types": "./src/sync.d.ts"
     }
   },
   "files": [
@@ -123,7 +127,10 @@
     "solid-js",
     "preact",
     "lit",
-    "web-components"
+    "web-components",
+    "sync",
+    "replication",
+    "offline-first"
   ],
   "author": "Mauricio Perera <https://automators.work>",
   "license": "MIT",
