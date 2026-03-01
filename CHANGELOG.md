@@ -13,9 +13,14 @@
   - Pause/resume with event queuing
   - `onSync` and `onError` callbacks for monitoring
   - 34 tests covering push, pull, bidirectional, conflicts, lifecycle, and edge cases
+- **Sync status hooks** — reactive sync monitoring for React, Vue, and Svelte
+  - React: `useSyncStatus(syncEngine)` → `{ running, paused, lastEvent, error }`
+  - Vue: `useSyncStatus(syncEngine)` → reactive `Ref<>` values with `onUnmounted` cleanup
+  - Svelte: `syncStatusStore(syncEngine)` → Svelte store contract (`$status.running`, etc.)
+  - 11 tests across all three frameworks
 
 ### Testing
-- 696 tests total (up from 662)
+- 707 tests total (up from 662)
 
 ## v1.1.0 — 2026-02-28
 

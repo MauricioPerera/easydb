@@ -179,7 +179,7 @@ EasyDB provides reactive bindings for 7 UI frameworks. All integrations auto-ref
 ### React
 
 ```javascript
-import { useQuery, useRecord } from '@rckflr/easydb/react';
+import { useQuery, useRecord, useSyncStatus } from '@rckflr/easydb/react';
 
 function UserList({ db }) {
   const { data, loading, error } = useQuery(db.users);
@@ -191,12 +191,19 @@ function UserProfile({ db, userId }) {
   const { data: user } = useRecord(db.users, userId);
   return <h1>{user?.name}</h1>;
 }
+
+// Track sync status reactively:
+function SyncIndicator({ syncEngine }) {
+  const { running, paused, lastEvent, error } = useSyncStatus(syncEngine);
+  if (error) return <p>Sync error: {error.err.message}</p>;
+  return <p>Sync: {running ? (paused ? 'paused' : 'active') : 'stopped'}</p>;
+}
 ```
 
 ### Vue 3
 
 ```javascript
-import { useQuery, useRecord } from '@rckflr/easydb/vue';
+import { useQuery, useRecord, useSyncStatus } from '@rckflr/easydb/vue';
 
 // In <script setup>:
 const { data, loading, error } = useQuery(db.users);
@@ -205,15 +212,23 @@ const admins = useQuery(db.users.where('role', 'admin'));
 // Reactive key (re-fetches when ref changes):
 const userId = ref(1);
 const { data: user } = useRecord(db.users, userId);
+
+// Track sync status (reactive refs, auto-cleanup via onUnmounted):
+const { running, paused, lastEvent, error } = useSyncStatus(syncEngine);
 ```
 
 ### Svelte
 
 ```javascript
-import { queryStore, recordStore } from '@rckflr/easydb/svelte';
+import { queryStore, recordStore, syncStatusStore } from '@rckflr/easydb/svelte';
 
 const users = queryStore(db.users);
 // {#if $users.loading} ... {:else} {#each $users.data as user} ... {/each} {/if}
+
+// Track sync status:
+const status = syncStatusStore(syncEngine);
+// {#if $status.running}Syncing...{/if}
+// {#if $status.error}Error: {$status.error.err.message}{/if}
 ```
 
 ### Angular 16+
