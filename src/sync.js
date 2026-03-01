@@ -198,7 +198,8 @@ export class SyncEngine {
 
           const prev = snapshots.get(storeName) || new Map();
 
-          // Detect new/updated in `from`
+          // Batch: detect new/updated in `from`
+          const toPut = [];
           for (const [key, val] of fromMap) {
             const existing = toMap.get(key);
             const prevVal = prev.get(key);
@@ -207,18 +208,19 @@ export class SyncEngine {
             if (prevVal && JSON.stringify(prevVal) === JSON.stringify(val)) continue;
 
             if (!existing) {
-              // New record in from → put to to
-              await to[storeName].put(val);
+              toPut.push(val);
               this._emitSync({ op: 'pull', store: storeName, type: 'put', key });
             } else if (JSON.stringify(existing) !== JSON.stringify(val)) {
               // Conflict: exists in both but different
               const resolved = await this._resolveConflict(storeName, key, val, existing);
               if (resolved !== undefined) {
-                await to[storeName].put(resolved);
+                toPut.push(resolved);
                 this._emitSync({ op: 'pull', store: storeName, type: 'put', key, conflict: true });
               }
             }
           }
+
+          if (toPut.length) await to[storeName].putMany(toPut);
 
           // Detect deletions: was in prev snapshot but not in current from
           for (const [key] of prev) {
@@ -258,32 +260,40 @@ export class SyncEngine {
     const sourceMap = new Map(sourceAll.map(v => [v[keyPath], v]));
     const targetMap = new Map(targetAll.map(v => [v[keyPath], v]));
 
-    // Records only in source → push to target
+    // Batch: records to push to target
+    const toTarget = [];
+    const toSourceFromConflict = [];
+
     for (const [key, val] of sourceMap) {
       const existing = targetMap.get(key);
       if (!existing) {
-        await this._target[storeName].put(val);
+        toTarget.push(val);
         this._emitSync({ op: 'syncAll', store: storeName, type: 'put', key, direction: 'source→target' });
       } else if (JSON.stringify(existing) !== JSON.stringify(val)) {
         const resolved = await this._resolveConflict(storeName, key, val, existing);
         if (resolved !== undefined) {
-          await this._target[storeName].put(resolved);
+          toTarget.push(resolved);
           if (this._direction === 'bidirectional') {
-            await this._source[storeName].put(resolved);
+            toSourceFromConflict.push(resolved);
           }
           this._emitSync({ op: 'syncAll', store: storeName, type: 'put', key, conflict: true });
         }
       }
     }
 
-    // Records only in target → pull to source (if bidirectional)
+    if (toTarget.length) await this._target[storeName].putMany(toTarget);
+    if (toSourceFromConflict.length) await this._source[storeName].putMany(toSourceFromConflict);
+
+    // Batch: records only in target → pull to source (if bidirectional)
     if (this._direction === 'bidirectional' || this._direction === 'pull') {
+      const toSource = [];
       for (const [key, val] of targetMap) {
         if (!sourceMap.has(key)) {
-          await this._source[storeName].put(val);
+          toSource.push(val);
           this._emitSync({ op: 'syncAll', store: storeName, type: 'put', key, direction: 'target→source' });
         }
       }
+      if (toSource.length) await this._source[storeName].putMany(toSource);
     }
   }
 
