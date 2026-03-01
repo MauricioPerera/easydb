@@ -92,7 +92,7 @@ class RedisConnection {
   }
 
   async count(storeName, opts = {}) {
-    if (!opts.range && !opts.index) {
+    if (!opts.range) {
       this._meta(storeName);
       const len = await this._redis.hlen(this._hkey(storeName));
       return len;

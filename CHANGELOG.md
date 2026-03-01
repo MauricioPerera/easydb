@@ -40,6 +40,14 @@
 - **Angular double-fetch** — `createQuery()` and `createRecord()` with function input no longer call `refresh()` twice on initialization
 - **`last-write-wins` timestamps** — uses `?? 0` instead of `|| 0` to correctly handle falsy timestamp values like `0`
 - **CHANGELOG v1.1.0** — corrected stale API names for Angular, Solid.js, Preact, and Lit
+- **IDB `onblocked` handler** — `open()` now rejects with `VersionError` instead of hanging silently when another tab holds an old connection
+- **D1 rollback error preservation** — if rollback itself fails, the original error is now thrown with `rollbackError` attached instead of being swallowed
+- **SQLite re-entrant transactions** — unique savepoint names (`easydb_txn_N`) replace the fixed `easydb_txn` name that broke nested calls
+- **Postgres `putMany` nesting** — replaced raw `BEGIN`/`COMMIT` with `SAVEPOINT`/`RELEASE` so `putMany()` nests safely inside `transaction()`
+- **Redis atomic auto-increment** — uses Redis `INCR` instead of read-modify-write on a JSON blob, fixing race conditions across multiple instances
+- **Redis/KV schema upgrade** — upgrading schema version no longer drops stores not re-declared in the new schema; existing stores are merged in
+- **Redis/KV `count()` fast-path** — removed unnecessary `!opts.index` guard (same fix previously applied to Memory adapter)
+- **Framework `.d.ts` exports** — all interfaces in Vue, Svelte, Angular, Solid.js, Preact, and Lit type declarations are now exported, fixing broken TypeScript inference for consumers
 
 ### Testing
 - 739 tests total (up from 662)

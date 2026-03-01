@@ -28,11 +28,11 @@ export interface UseQueryOptions {
   watch?: boolean;
 }
 
-interface QueryLike<T = any> {
+export interface QueryLike<T = any> {
   toArray(): Promise<T[]>;
 }
 
-interface StoreLike<T = any> {
+export interface StoreLike<T = any> {
   all(): QueryLike<T>;
   get(key: any): Promise<T | undefined>;
   put(value: T): Promise<any>;

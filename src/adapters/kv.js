@@ -92,8 +92,8 @@ class KVConnection {
   }
 
   async count(storeName, opts = {}) {
-    if (!opts.range && !opts.index) {
-      const meta = this._meta(storeName);
+    if (!opts.range) {
+      this._meta(storeName);
       const keys = await this._listKeys(storeName);
       return keys.length;
     }

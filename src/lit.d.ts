@@ -14,18 +14,18 @@
 
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 
-interface QueryLike<T = any> {
+export interface QueryLike<T = any> {
   toArray(): Promise<T[]>;
 }
 
-interface StoreLike<T = any> {
+export interface StoreLike<T = any> {
   all(): QueryLike<T>;
   get(key: any): Promise<T | undefined>;
   put(value: T): Promise<any>;
   watch(opts?: { key?: any }): AsyncIterable<any>;
 }
 
-interface QueryControllerOptions {
+export interface QueryControllerOptions {
   watch?: boolean;
 }
 
