@@ -552,4 +552,51 @@ describe('SyncEngine — addListener', () => {
     unsub(); // double-call is safe
     expect(sync._listeners).toHaveLength(0);
   });
+
+  it('onStatusChange fires on start/stop/pause/resume', async () => {
+    const source = await EasyDB.open('status-src-' + Math.random(), { adapter: new MemoryAdapter(), schema });
+    const target = await EasyDB.open('status-tgt-' + Math.random(), { adapter: new MemoryAdapter(), schema });
+
+    const sync = new SyncEngine(source, target, { stores: ['users'], direction: 'push' });
+    const statuses = [];
+    sync.addListener({ onStatusChange: s => statuses.push({ ...s }) });
+
+    sync.start();
+    expect(statuses).toHaveLength(1);
+    expect(statuses[0]).toEqual({ running: true, paused: false });
+
+    sync.pause();
+    expect(statuses).toHaveLength(2);
+    expect(statuses[1]).toEqual({ running: true, paused: true });
+
+    await sync.resume();
+    expect(statuses).toHaveLength(3);
+    expect(statuses[2]).toEqual({ running: true, paused: false });
+
+    sync.stop();
+    expect(statuses).toHaveLength(4);
+    expect(statuses[3]).toEqual({ running: false, paused: false });
+  });
+
+  it('listener self-unsubscribe during callback does not skip others', async () => {
+    const source = await EasyDB.open('safe-src-' + Math.random(), { adapter: new MemoryAdapter(), schema });
+    const target = await EasyDB.open('safe-tgt-' + Math.random(), { adapter: new MemoryAdapter(), schema });
+
+    const sync = new SyncEngine(source, target, { stores: ['users'], direction: 'push' });
+    const calls = [];
+    let unsub1;
+
+    // First listener unsubscribes itself on first call
+    unsub1 = sync.addListener({
+      onStatusChange: () => { calls.push('A'); unsub1(); },
+    });
+    // Second listener should still fire
+    sync.addListener({
+      onStatusChange: () => { calls.push('B'); },
+    });
+
+    sync.start();
+    expect(calls).toEqual(['A', 'B']);
+    sync.stop();
+  });
 });

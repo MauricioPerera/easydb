@@ -217,14 +217,14 @@ export class QueryBuilder {
 
   async count() {
     this._assertStore();
-    // FAST PATH: use native count when no JS filter
-    if (!this._filterFn) {
+    // FAST PATH: use native count when no JS filter AND no skip/limit
+    if (!this._filterFn && !this._skip && this._limit == null) {
       return this._conn.count(this._store, {
         index: this._index,
         range: this._range,
       });
     }
-    // SLOW PATH: must iterate (JS filter evaluates each record)
+    // SLOW PATH: must iterate (JS filter, skip, or limit applied)
     let n = 0;
     for await (const _ of this) n++;
     return n;

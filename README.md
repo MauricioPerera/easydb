@@ -368,6 +368,20 @@ await sync.syncStore('users'); // single store
 sync.stop();                 // stop and clean up
 ```
 
+### Programmatic sync monitoring
+
+Use `addListener()` to track sync events and lifecycle changes outside of framework hooks:
+
+```javascript
+const unsub = sync.addListener({
+  onSync(event) { console.log('synced:', event.store, event.type); },
+  onError(err, ctx) { console.error('sync error:', ctx.store, err); },
+  onStatusChange({ running, paused }) { console.log({ running, paused }); },
+});
+
+// Call unsub() when done. Safe for multiple concurrent listeners.
+```
+
 ### Custom conflict resolution
 
 ```javascript
@@ -592,7 +606,7 @@ const admins = await db.users.where('role', 'admin').toArray();  // MySchema['us
 git clone https://github.com/MauricioPerera/easydb.git
 cd easydb
 npm install
-npm test            # Run all 696 tests
+npm test            # Run all 730 tests
 npm run build       # Generate CDN bundles (dist/)
 npm run bench       # Run benchmarks
 npm run metrics     # Show LOC and gzip sizes

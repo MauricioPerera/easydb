@@ -116,10 +116,13 @@ export function syncStatusStore(syncEngine) {
       if (subscribers.size === 1) {
         unsubscribe = syncEngine.addListener({
           onSync(event) {
-            set({ ...state, running: syncEngine.running, paused: syncEngine.paused, lastEvent: event });
+            set({ ...state, lastEvent: event });
           },
           onError(err, context) {
             set({ ...state, error: { err, context } });
+          },
+          onStatusChange(status) {
+            set({ ...state, running: status.running, paused: status.paused });
           },
         });
       }

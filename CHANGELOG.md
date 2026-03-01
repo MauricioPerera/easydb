@@ -12,7 +12,9 @@
   - Custom `onConflict` callback for manual merge logic
   - Pause/resume with event queuing
   - `onSync` and `onError` callbacks for monitoring
-  - 34 tests covering push, pull, bidirectional, conflicts, lifecycle, and edge cases
+  - `addListener()` public API for multi-consumer sync status tracking with `onSync`, `onError`, and `onStatusChange` callbacks
+  - Order-insensitive deep equality for conflict detection (replaces fragile `JSON.stringify`)
+  - 38 tests covering push, pull, bidirectional, conflicts, lifecycle, listeners, and edge cases
 - **Sync status hooks** — reactive sync monitoring for all 7 frameworks
   - React: `useSyncStatus(syncEngine)` → `{ running, paused, lastEvent, error }`
   - Vue: `useSyncStatus(syncEngine)` → reactive `Ref<>` values with `onUnmounted` cleanup
@@ -23,8 +25,17 @@
   - Lit: `EasyDBSyncStatusController` → `ReactiveController` with `hostConnected`/`hostDisconnected`
   - 27 tests across all seven frameworks
 
+### Fixed
+- **Adapter type declarations** — 5 adapter `.d.ts` files incorrectly re-exported from main module; now properly declare types from their own files
+- **Lifecycle notifications** — `start()`/`stop()`/`pause()`/`resume()` now notify listeners via `onStatusChange`, fixing stale `running`/`paused` state in hooks
+- **React/Preact stale closure** — watcher `refresh()` now reads from `queryRef.current` instead of closure variable
+- **`count()` fast path** — now correctly falls back to slow path when `skip()` or `limit()` are applied
+- **Unsafe listener iteration** — `_emitSync`/`_handleError` now iterate a copy of the listeners array, preventing skipped callbacks when a listener unsubscribes during dispatch
+- **Angular double-fetch** — `createQuery()` with function input no longer calls `refresh()` twice on initialization
+- **`last-write-wins` timestamps** — uses `?? 0` instead of `|| 0` to correctly handle falsy timestamp values like `0`
+
 ### Testing
-- 723 tests total (up from 662)
+- 730 tests total (up from 662)
 
 ## v1.1.0 — 2026-02-28
 

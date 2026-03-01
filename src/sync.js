@@ -25,6 +25,32 @@
  * @license MIT
  */
 
+/** Order-insensitive deep equality for plain objects/arrays/primitives. */
+function deepEqual(a, b) {
+  if (a === b) return true;
+  if (a == null || b == null) return a === b;
+  if (typeof a !== typeof b) return false;
+  if (typeof a !== 'object') return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+
+  if (Array.isArray(a)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqual(a[i], b[i])) return false;
+    }
+    return true;
+  }
+
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  for (const k of keysA) {
+    if (!Object.prototype.hasOwnProperty.call(b, k)) return false;
+    if (!deepEqual(a[k], b[k])) return false;
+  }
+  return true;
+}
+
 // ── SyncEngine ──────────────────────────────────────────
 
 export class SyncEngine {
@@ -91,6 +117,8 @@ export class SyncEngine {
     if (this._direction === 'bidirectional') {
       this._startPush(this._target, this._source);
     }
+
+    this._notifyStatus();
   }
 
   /** Stop all synchronization. */
@@ -104,18 +132,22 @@ export class SyncEngine {
 
     for (const timer of this._pullTimers) clearInterval(timer);
     this._pullTimers.length = 0;
+
+    this._notifyStatus();
   }
 
   /** Pause sync — events are queued but not applied. */
   pause() {
     if (!this._running) return;
     this._paused = true;
+    this._notifyStatus();
   }
 
   /** Resume sync — flush queued events. */
   async resume() {
     if (!this._running || !this._paused) return;
     this._paused = false;
+    this._notifyStatus();
 
     // Flush pending events
     const pending = this._pendingQueue.splice(0);
@@ -206,12 +238,12 @@ export class SyncEngine {
             const prevVal = prev.get(key);
 
             // Skip if identical to what we saw last time (no change)
-            if (prevVal && JSON.stringify(prevVal) === JSON.stringify(val)) continue;
+            if (prevVal && deepEqual(prevVal, val)) continue;
 
             if (!existing) {
               toPut.push(val);
               this._emitSync({ op: 'pull', store: storeName, type: 'put', key });
-            } else if (JSON.stringify(existing) !== JSON.stringify(val)) {
+            } else if (!deepEqual(existing, val)) {
               // Conflict: exists in both but different
               const resolved = await this._resolveConflict(storeName, key, val, existing);
               if (resolved !== undefined) {
@@ -270,7 +302,7 @@ export class SyncEngine {
       if (!existing) {
         toTarget.push(val);
         this._emitSync({ op: 'syncAll', store: storeName, type: 'put', key, direction: 'source→target' });
-      } else if (JSON.stringify(existing) !== JSON.stringify(val)) {
+      } else if (!deepEqual(existing, val)) {
         const resolved = await this._resolveConflict(storeName, key, val, existing);
         if (resolved !== undefined) {
           toTarget.push(resolved);
@@ -313,7 +345,7 @@ export class SyncEngine {
         const key = keyPath ? event.value[keyPath] : event.key;
         const existing = await to[storeName].get(key);
 
-        if (existing && JSON.stringify(existing) !== JSON.stringify(event.value)) {
+        if (existing && !deepEqual(existing, event.value)) {
           // Conflict
           const resolved = await this._resolveConflict(storeName, key, event.value, existing);
           if (resolved !== undefined) {
@@ -350,8 +382,8 @@ export class SyncEngine {
 
       case 'last-write-wins': {
         const tsField = this._tsField;
-        const sourceTs = sourceVal[tsField] || 0;
-        const targetTs = targetVal[tsField] || 0;
+        const sourceTs = sourceVal[tsField] ?? 0;
+        const targetTs = targetVal[tsField] ?? 0;
         return sourceTs >= targetTs ? sourceVal : targetVal;
       }
 
@@ -372,7 +404,7 @@ export class SyncEngine {
   /**
    * Register a status listener. Returns an unsubscribe function.
    *
-   * @param {{ onSync?: (event: SyncEvent) => void, onError?: (err: Error, context: object) => void }} listener
+   * @param {{ onSync?: (event: SyncEvent) => void, onError?: (err: Error, context: object) => void, onStatusChange?: (status: { running: boolean, paused: boolean }) => void }} listener
    * @returns {() => void} unsubscribe
    */
   addListener(listener) {
@@ -389,7 +421,7 @@ export class SyncEngine {
     if (this._onError) {
       this._onError(err, context);
     }
-    for (const l of this._listeners) {
+    for (const l of [...this._listeners]) {
       if (l.onError) l.onError(err, context);
     }
   }
@@ -398,8 +430,15 @@ export class SyncEngine {
     if (this._onSync) {
       this._onSync(event);
     }
-    for (const l of this._listeners) {
+    for (const l of [...this._listeners]) {
       if (l.onSync) l.onSync(event);
+    }
+  }
+
+  /** Notify listeners of running/paused state changes. */
+  _notifyStatus() {
+    for (const l of [...this._listeners]) {
+      if (l.onStatusChange) l.onStatusChange({ running: this._running, paused: this._paused });
     }
   }
 }

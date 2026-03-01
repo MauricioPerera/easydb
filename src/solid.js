@@ -208,11 +208,13 @@ export function createSyncStatus(syncEngine) {
   const unsubscribe = syncEngine.addListener({
     onSync(event) {
       setLastEvent(event);
-      setRunning(syncEngine.running);
-      setPaused(syncEngine.paused);
     },
     onError(err, context) {
       setError({ err, context });
+    },
+    onStatusChange({ running, paused }) {
+      setRunning(running);
+      setPaused(paused);
     },
   });
 

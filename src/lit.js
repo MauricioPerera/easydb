@@ -147,12 +147,15 @@ export class EasyDBSyncStatusController {
     this._unsubscribe = this._syncEngine.addListener({
       onSync: (event) => {
         this.lastEvent = event;
-        this.running = this._syncEngine.running;
-        this.paused = this._syncEngine.paused;
         this._host.requestUpdate();
       },
       onError: (err, context) => {
         this.error = { err, context };
+        this._host.requestUpdate();
+      },
+      onStatusChange: (status) => {
+        this.running = status.running;
+        this.paused = status.paused;
         this._host.requestUpdate();
       },
     });

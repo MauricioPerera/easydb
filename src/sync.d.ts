@@ -114,5 +114,6 @@ export declare class SyncEngine {
   addListener(listener: {
     onSync?: (event: SyncEvent) => void;
     onError?: (err: Error, context: SyncErrorContext) => void;
+    onStatusChange?: (status: { running: boolean; paused: boolean }) => void;
   }): () => void;
 }

@@ -6,7 +6,7 @@ Thanks for your interest in contributing! EasyDB is a small, focused project and
 
 - **Minimal** — no dependencies, small surface area
 - **Modern** — ES2018+, async/await, async iterables
-- **Multi-backend** — same API across IndexedDB, Memory, D1, KV
+- **Multi-backend** — same API across 9 adapters (IndexedDB, Memory, SQLite, PostgreSQL, Redis, Turso, D1, KV, localStorage)
 
 ## Getting Started
 
@@ -103,7 +103,7 @@ class MyAdapter {
 
 ## What We're NOT Looking For
 
-- Breaking changes to the public API (we're targeting a 1.0 freeze)
+- Breaking changes to the public API (frozen since v1.0.0)
 - Dependencies (keep it zero-dep)
 - ORM features (relations, schema validation, etc.)
 - SQL support in the query builder

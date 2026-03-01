@@ -52,11 +52,12 @@ export function useQuery(queryOrStore, opts = {}) {
   function refresh() {
     versionRef.current++;
     const ver = versionRef.current;
+    const q = queryRef.current;
 
     setLoading(true);
     setError(null);
 
-    query.toArray()
+    q.toArray()
       .then(results => {
         if (versionRef.current === ver) {
           setData(results);
@@ -116,11 +117,13 @@ export function useSyncStatus(syncEngine) {
     return syncEngine.addListener({
       onSync(event) {
         setLastEvent(event);
-        setRunning(syncEngine.running);
-        setPaused(syncEngine.paused);
       },
       onError(err, context) {
         setError({ err, context });
+      },
+      onStatusChange({ running, paused }) {
+        setRunning(running);
+        setPaused(paused);
       },
     });
   }, [syncEngine]);

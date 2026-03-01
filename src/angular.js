@@ -98,10 +98,6 @@ export function createQuery(queryOrStore, opts = {}) {
     }
   }
 
-  // Initial fetch
-  refresh();
-  setupWatcher();
-
   // If called inside an injection context, auto-cleanup on destroy
   try {
     const destroyRef = inject(DestroyRef);
@@ -111,13 +107,17 @@ export function createQuery(queryOrStore, opts = {}) {
   }
 
   // If queryOrStore is a function, use effect() to track signal changes
+  // (effect runs immediately, so it handles the initial fetch)
   if (typeof queryOrStore === 'function') {
     effect(() => {
-      // Call the function to track signal dependencies
-      queryOrStore();
+      queryOrStore(); // track signal dependencies
       refresh();
       setupWatcher();
     });
+  } else {
+    // Static query — fetch once and set up watcher
+    refresh();
+    setupWatcher();
   }
 
   return { data: data.asReadonly(), loading: loading.asReadonly(), error: error.asReadonly(), refresh };
@@ -138,11 +138,13 @@ export function createSyncStatus(syncEngine) {
   const unsubscribe = syncEngine.addListener({
     onSync(event) {
       lastEvent.set(event);
-      running.set(syncEngine.running);
-      paused.set(syncEngine.paused);
     },
     onError(err, context) {
       error.set({ err, context });
+    },
+    onStatusChange(status) {
+      running.set(status.running);
+      paused.set(status.paused);
     },
   });
 

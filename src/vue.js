@@ -120,11 +120,13 @@ export function useSyncStatus(syncEngine) {
   const unsubscribe = syncEngine.addListener({
     onSync(event) {
       lastEvent.value = event;
-      running.value = syncEngine.running;
-      paused.value = syncEngine.paused;
     },
     onError(err, context) {
       error.value = { err, context };
+    },
+    onStatusChange(status) {
+      running.value = status.running;
+      paused.value = status.paused;
     },
   });
 
