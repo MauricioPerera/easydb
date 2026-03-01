@@ -43,6 +43,7 @@ class SQLiteConnection {
     this._db = sqlite;
     this._stores = stores; // Map<storeName, { keyPath, autoIncrement, indexes }>
     this._version = version;
+    this._savepointId = 0;
   }
 
   get name() { return this._name; }
@@ -264,13 +265,14 @@ class SQLiteConnection {
 
     // better-sqlite3 transactions are sync, but our fn is async.
     // Use savepoint-based manual approach instead.
-    this._db.prepare('SAVEPOINT easydb_txn').run();
+    const sp = `easydb_txn_${++this._savepointId}`;
+    this._db.prepare(`SAVEPOINT ${sp}`).run();
     try {
       await fn(proxy);
-      this._db.prepare('RELEASE SAVEPOINT easydb_txn').run();
+      this._db.prepare(`RELEASE SAVEPOINT ${sp}`).run();
     } catch (err) {
-      this._db.prepare('ROLLBACK TO SAVEPOINT easydb_txn').run();
-      this._db.prepare('RELEASE SAVEPOINT easydb_txn').run();
+      this._db.prepare(`ROLLBACK TO SAVEPOINT ${sp}`).run();
+      this._db.prepare(`RELEASE SAVEPOINT ${sp}`).run();
       throw err;
     }
   }

@@ -236,6 +236,10 @@ export class IDBAdapter {
       };
       request.onsuccess = () => resolve(new IDBConnection(request.result));
       request.onerror = () => reject(request.error);
+      request.onblocked = () => reject(new DOMException(
+        'Database upgrade blocked by open connection in another tab',
+        'VersionError'
+      ));
     });
   }
 

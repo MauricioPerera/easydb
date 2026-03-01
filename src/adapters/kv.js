@@ -315,6 +315,19 @@ export class KVAdapter {
         getStore() { return null; }
       }, currentVersion);
 
+      // Load existing stores first — preserve stores not re-declared in this upgrade
+      const metaPrefix = `${prefix}m:`;
+      let existingCursor = undefined;
+      do {
+        const list = await this._kv.list({ prefix: metaPrefix, cursor: existingCursor, limit: 1000 });
+        for (const k of list.keys) {
+          const existingStoreName = k.name.slice(metaPrefix.length);
+          const existingMeta = await this._kv.get(k.name, 'json');
+          if (existingMeta) stores.set(existingStoreName, existingMeta);
+        }
+        existingCursor = list.list_complete ? undefined : list.cursor;
+      } while (existingCursor);
+
       for (const { storeName, opts } of storeDefs) {
         const indexes = [];
         if (opts.indexes) {
@@ -329,14 +342,8 @@ export class KVAdapter {
           keyPath: opts.key || null,
           autoIncrement: opts.autoIncrement || false,
           indexes,
-          nextKey: 1,
+          nextKey: stores.get(storeName)?.nextKey || 1,
         };
-
-        // Preserve existing nextKey if store already exists
-        const existingMeta = await this._kv.get(`${prefix}m:${storeName}`, 'json');
-        if (existingMeta && existingMeta.nextKey) {
-          meta.nextKey = existingMeta.nextKey;
-        }
 
         stores.set(storeName, meta);
         await this._kv.put(`${prefix}m:${storeName}`, JSON.stringify(meta));

@@ -34,6 +34,7 @@ class PostgresConnection {
     this._client = client;
     this._stores = stores; // Map<storeName, { keyPath, autoIncrement, indexes }>
     this._version = version;
+    this._savepointId = 0;
   }
 
   get name() { return this._name; }
@@ -190,17 +191,18 @@ class PostgresConnection {
       }
       return keys;
     }
-    // Non-autoIncrement: batch within a transaction
-    await this._client.query('BEGIN');
+    // Non-autoIncrement: batch within a savepoint (nests safely inside transaction())
+    const sp = `easydb_putmany_${++this._savepointId}`;
+    await this._client.query(`SAVEPOINT ${sp}`);
     try {
       const keys = [];
       for (const item of items) {
         keys.push(await this.put(storeName, item));
       }
-      await this._client.query('COMMIT');
+      await this._client.query(`RELEASE SAVEPOINT ${sp}`);
       return keys;
     } catch (err) {
-      await this._client.query('ROLLBACK');
+      await this._client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
       throw err;
     }
   }

@@ -240,19 +240,23 @@ class D1Connection {
       await fn(proxy);
     } catch (err) {
       // Rollback: restore each store from snapshot
-      for (const [name, rows] of snapshots) {
-        await this._d1.prepare(`DELETE FROM ${_esc(name)}`).run();
-        if (rows.length) {
-          const cols = Object.keys(rows[0]);
-          const colsSql = cols.map(c => _esc(c)).join(', ');
-          for (const row of rows) {
-            const placeholders = cols.map((_, i) => `?${i + 1}`).join(', ');
-            const vals = cols.map(c => row[c]);
-            await this._d1.prepare(
-              `INSERT INTO ${_esc(name)} (${colsSql}) VALUES (${placeholders})`
-            ).bind(...vals).run();
+      try {
+        for (const [name, rows] of snapshots) {
+          await this._d1.prepare(`DELETE FROM ${_esc(name)}`).run();
+          if (rows.length) {
+            const cols = Object.keys(rows[0]);
+            const colsSql = cols.map(c => _esc(c)).join(', ');
+            for (const row of rows) {
+              const placeholders = cols.map((_, i) => `?${i + 1}`).join(', ');
+              const vals = cols.map(c => row[c]);
+              await this._d1.prepare(
+                `INSERT INTO ${_esc(name)} (${colsSql}) VALUES (${placeholders})`
+              ).bind(...vals).run();
+            }
           }
         }
+      } catch (rollbackErr) {
+        err.rollbackError = rollbackErr;
       }
       throw err;
     }

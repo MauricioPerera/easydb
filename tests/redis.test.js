@@ -62,6 +62,13 @@ function createMockRedis() {
       const hash = hashes.get(key);
       return fields.map(f => hash?.get(f) ?? null);
     },
+
+    async incr(key) {
+      const current = parseInt(store.get(key) || '0', 10);
+      const next = current + 1;
+      store.set(key, String(next));
+      return next;
+    },
   };
 }
 
