@@ -6,6 +6,11 @@ export default defineConfig({
     setupFiles: ['./tests/setup.js'],
     testTimeout: 10000,
     pool: 'forks',       // isolate tests to avoid IDB state leaks
-    fileParallelism: false // run test files sequentially (IDB is global)
+    fileParallelism: false, // run test files sequentially (IDB is global)
+    exclude: [
+      'tests/integration/**',
+      'tests/frameworks/**',
+      'node_modules/**',
+    ]
   }
 });

@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.3.0 — 2026-03-01
+
+### New Storage Adapter
+- **MySQLAdapter** — MySQL / MariaDB via `mysql2/promise`
+  - Single adapter covers both MySQL 8+ and MariaDB 10.5+ (wire-compatible)
+  - True ACID transactions via BEGIN/COMMIT/ROLLBACK with dedicated pool connection
+  - SQL-native range queries and indexes
+  - LONGTEXT `_value` column for JSON payloads up to 4GB
+  - VARCHAR(255) primary keys (MySQL can't index TEXT directly)
+  - INT AUTO_INCREMENT for autoIncrement stores
+  - Index creation with try/catch on errno 1061 (MySQL 8 doesn't support IF NOT EXISTS on indexes)
+  - ON DUPLICATE KEY UPDATE for upserts
+  - 20 unit tests with mock MySQL client, 48 integration tests (skipped when MySQL unavailable)
+
+### Changed
+- Docker Compose now includes MySQL 8.4 (port 3306) and MariaDB 11.4 (port 3307) services
+- Updated README, ADAPTERS guide, and CONTRIBUTING docs for 10 adapters
+- Added `mysql2` as optional peer dependency and dev dependency
+- Added `./adapters/mysql` to package.json exports map
+
+### Testing
+- 804 tests total (up from 784)
+
 ## v1.2.0 — 2026-02-28
 
 ### New Features

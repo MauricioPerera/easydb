@@ -1,6 +1,6 @@
 # EasyDB
 
-> Multi-backend storage with `async/await`, async iterables, and modern JavaScript — IndexedDB, SQLite, PostgreSQL, Redis, Turso, D1, KV, localStorage.
+> Multi-backend storage with `async/await`, async iterables, and modern JavaScript — IndexedDB, SQLite, PostgreSQL, MySQL/MariaDB, Redis, Turso, D1, KV, localStorage.
 
 Inspired by Cloudflare's ["We deserve a better streams API"](https://blog.cloudflare.com/a-better-web-streams-api/) philosophy — applying pull semantics, zero ceremony, and native fast paths to client-side and edge storage.
 
@@ -12,11 +12,11 @@ IndexedDB was designed in 2011 with DOM events. Reading a single record requires
 const user = await db.users.get(42);
 ```
 
-And the same API works across **browsers** (IndexedDB), **Node.js** (SQLite, PostgreSQL, Redis), **edge** (D1, KV, Turso), and **tests** (Memory) — swap the adapter, keep your code.
+And the same API works across **browsers** (IndexedDB), **Node.js** (SQLite, PostgreSQL, MySQL/MariaDB, Redis), **edge** (D1, KV, Turso), and **tests** (Memory) — swap the adapter, keep your code.
 
 ## Features
 
-- **9 storage adapters** — IndexedDB, Memory, SQLite, PostgreSQL, Redis, Turso, D1, KV, localStorage
+- **10 storage adapters** — IndexedDB, Memory, SQLite, PostgreSQL, MySQL/MariaDB, Redis, Turso, D1, KV, localStorage
 - **7 framework integrations** — React, Vue, Svelte, Angular, Solid.js, Preact, Lit
 - **~400 LOC core, zero dependencies** — thin ergonomic wrapper, not a framework
 - **Proxy-based store access** — `db.users`, `db.orders` without registration
@@ -103,6 +103,21 @@ import { Pool } from 'pg';
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const db = await EasyDB.open('app', {
   adapter: new PostgresAdapter(pool),
+  schema(s) {
+    s.createStore('users', { key: 'id', indexes: ['role'] });
+  }
+});
+```
+
+### Node.js (MySQL / MariaDB)
+
+```javascript
+import { MySQLAdapter } from '@rckflr/easydb/adapters/mysql';
+import mysql from 'mysql2/promise';
+
+const pool = mysql.createPool({ host: 'localhost', user: 'root', database: 'app' });
+const db = await EasyDB.open('app', {
+  adapter: new MySQLAdapter(pool),
   schema(s) {
     s.createStore('users', { key: 'id', indexes: ['role'] });
   }
@@ -487,6 +502,7 @@ EasyDB uses a pluggable adapter architecture. All adapters implement the same in
 | `MemoryAdapter` | `@rckflr/easydb` | Anywhere | In-memory |
 | `SQLiteAdapter` | `@rckflr/easydb/adapters/sqlite` | Node.js | File / in-memory |
 | `PostgresAdapter` | `@rckflr/easydb/adapters/postgres` | Node.js | PostgreSQL |
+| `MySQLAdapter` | `@rckflr/easydb/adapters/mysql` | Node.js | MySQL / MariaDB |
 | `RedisAdapter` | `@rckflr/easydb/adapters/redis` | Node.js | Redis |
 | `TursoAdapter` | `@rckflr/easydb/adapters/turso` | Node.js / Edge | Turso / libSQL |
 | `D1Adapter` | `@rckflr/easydb` | Cloudflare Workers | D1 (SQLite) |
@@ -530,8 +546,8 @@ rollback)   + range          BroadcastChannel)
         |
    Adapter Interface
         |
-   ┌──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┐
-  IDB  Memory  SQLite  PG   Redis Turso  D1    KV  localStorage
+   ┌──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┐
+  IDB  Memory  SQLite  PG   MySQL Redis Turso  D1    KV  localStorage
 ```
 
 ## Bundle Size
@@ -567,7 +583,7 @@ const admins = await db.users.where('role', 'admin').toArray();  // MySchema['us
 - **Transactions auto-commit** when there are no pending IDB requests in the event loop. Avoid `await fetch()` inside a transaction.
 - **No compound indexes** — use `.filter()` for JS-side compound predicates.
 
-### SQL adapters (D1, SQLite, PostgreSQL, Turso)
+### SQL adapters (D1, SQLite, PostgreSQL, MySQL/MariaDB, Turso)
 - **Transactions are emulated** with SAVEPOINT/BEGIN/snapshot depending on adapter.
 - `.filter()` runs JS-side after the SQL query.
 
@@ -583,7 +599,7 @@ const admins = await db.users.where('role', 'admin').toArray();  // MySchema['us
 | Feature | EasyDB | Dexie.js | idb | SQLite WASM |
 |---------|--------|----------|-----|-------------|
 | Size | ~400 LOC core | ~15k LOC | ~2KB | ~800KB WASM |
-| Multi-backend | 9 adapters | IndexedDB only | IndexedDB only | SQLite only |
+| Multi-backend | 10 adapters | IndexedDB only | IndexedDB only | SQLite only |
 | Framework bindings | 7 frameworks | React | No | No |
 | Async iterables | Pull cursor | Callback-based | No | No |
 | Range queries | Native | Native | Manual | SQL |
@@ -618,7 +634,7 @@ This project emerged from a discussion about Cloudflare's blog post ["We deserve
 
 We asked: **what other JS APIs deserve the same treatment?** IndexedDB was the obvious candidate — an API from 2011 that predates `async/await`, async iterables, and Proxy, all of which are now standard JavaScript.
 
-EasyDB started as a proof of concept and evolved into a multi-backend storage library with 9 adapters and 7 framework integrations — demonstrating that modern JavaScript primitives can provide a clean, unified storage API across environments.
+EasyDB started as a proof of concept and evolved into a multi-backend storage library with 10 adapters and 7 framework integrations — demonstrating that modern JavaScript primitives can provide a clean, unified storage API across environments.
 
 ## License
 

@@ -8,7 +8,7 @@
  * - IDBAdapter (browser IndexedDB, default)
  * - MemoryAdapter (testing, SSR, serverless)
  * - D1Adapter / KVAdapter (Cloudflare Workers)
- * - SQLiteAdapter (better-sqlite3), PostgresAdapter, RedisAdapter
+ * - SQLiteAdapter (better-sqlite3), PostgresAdapter, MySQLAdapter, RedisAdapter, MongoAdapter
  * - TursoAdapter (libSQL), LocalStorageAdapter
  *
  * Zero dependencies. Works in any modern browser or runtime.

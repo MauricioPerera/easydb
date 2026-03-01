@@ -1,7 +1,7 @@
 {
   "name": "@rckflr/easydb",
   "version": "1.2.0",
-  "description": "Multi-backend storage with async/await, async iterables, and modern JavaScript — IndexedDB, Memory, D1/SQLite, PostgreSQL, Redis, Turso, localStorage",
+  "description": "Multi-backend storage with async/await, async iterables, and modern JavaScript — IndexedDB, Memory, D1/SQLite, PostgreSQL, MySQL/MariaDB, Redis, MongoDB, Turso, localStorage",
   "main": "src/easydb.js",
   "module": "src/easydb.js",
   "types": "src/easydb.d.ts",
@@ -44,6 +44,14 @@
     "./adapters/turso": {
       "types": "./src/adapters/turso.d.ts",
       "import": "./src/adapters/turso.js"
+    },
+    "./adapters/mongo": {
+      "types": "./src/adapters/mongo.d.ts",
+      "import": "./src/adapters/mongo.js"
+    },
+    "./adapters/mysql": {
+      "types": "./src/adapters/mysql.d.ts",
+      "import": "./src/adapters/mysql.js"
     },
     "./adapters/sqlite": {
       "types": "./src/adapters/sqlite.d.ts",
@@ -95,6 +103,13 @@
     "metrics": "echo \"Core: $(wc -l < src/easydb.js) LOC | IDB: $(wc -l < src/adapters/indexeddb.js) LOC | Mem: $(wc -l < src/adapters/memory.js) LOC | D1: $(wc -l < src/adapters/d1.js) LOC | Sync: $(wc -l < src/sync.js) LOC | Browser gzip: $(cat src/easydb.js src/adapters/indexeddb.js | gzip -c | wc -c)B | Workers gzip: $(cat src/easydb.js src/adapters/d1.js | gzip -c | wc -c)B | Sync gzip: $(cat src/sync.js | gzip -c | wc -c)B\"",
     "build": "node scripts/build.js",
     "bench": "node benchmarks/run.js",
+    "bench:real": "node benchmarks/run-real.js",
+    "test:integration": "vitest run --config vitest.config.integration.js",
+    "test:frameworks": "vitest run --config vitest.config.frameworks.js",
+    "test:real": "npm run test:integration && npm run test:frameworks",
+    "test:all": "npm test && npm run test:real",
+    "docker:up": "docker compose up -d --wait",
+    "docker:down": "docker compose down -v",
     "demo": "open demo/index.html"
   },
   "keywords": [
@@ -118,6 +133,11 @@
     "postgres",
     "postgresql",
     "redis",
+    "mongodb",
+    "mongo",
+    "mysql",
+    "mysql2",
+    "mariadb",
     "turso",
     "libsql",
     "react",
@@ -146,13 +166,15 @@
     "node": ">=18"
   },
   "peerDependencies": {
+    "@angular/core": ">=16",
+    "lit": ">=2",
+    "preact": ">=10",
     "react": ">=18",
+    "solid-js": ">=1",
     "svelte": ">=3",
     "vue": ">=3",
-    "@angular/core": ">=16",
-    "solid-js": ">=1",
-    "preact": ">=10",
-    "lit": ">=2"
+    "mongodb": ">=5",
+    "mysql2": ">=3"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -175,12 +197,35 @@
     },
     "lit": {
       "optional": true
+    },
+    "mongodb": {
+      "optional": true
+    },
+    "mysql2": {
+      "optional": true
     }
   },
   "devDependencies": {
+    "@libsql/client": "^0.17.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/preact": "^3.2.4",
+    "@testing-library/react": "^16.3.2",
+    "@vue/test-utils": "^2.4.6",
     "better-sqlite3": "^12.6.2",
     "esbuild": "^0.27.3",
     "fake-indexeddb": "^6.2.5",
-    "vitest": "^4.0.18"
+    "ioredis": "^5.10.0",
+    "jsdom": "^28.1.0",
+    "mongodb": "^6.12.0",
+    "mysql2": "^3.11.0",
+    "lit": "^3.3.2",
+    "pg": "^8.19.0",
+    "preact": "^10.28.4",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "solid-js": "^1.9.11",
+    "vitest": "^4.0.18",
+    "vue": "^3.5.29"
   }
 }

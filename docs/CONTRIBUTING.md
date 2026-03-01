@@ -6,7 +6,7 @@ Thanks for your interest in contributing! EasyDB is a small, focused project and
 
 - **Minimal** — no dependencies, small surface area
 - **Modern** — ES2018+, async/await, async iterables
-- **Multi-backend** — same API across 9 adapters (IndexedDB, Memory, SQLite, PostgreSQL, Redis, Turso, D1, KV, localStorage)
+- **Multi-backend** — same API across 10 adapters (IndexedDB, Memory, SQLite, PostgreSQL, MySQL/MariaDB, Redis, Turso, D1, KV, localStorage)
 
 ## Getting Started
 
@@ -51,6 +51,7 @@ src/
     kv.js              # Cloudflare KV adapter
     sqlite.js          # SQLite adapter (better-sqlite3)
     postgres.js        # PostgreSQL adapter (node-postgres/Neon)
+    mysql.js           # MySQL/MariaDB adapter (mysql2)
     redis.js           # Redis adapter (ioredis/Upstash)
     turso.js           # Turso/libSQL adapter
     localstorage.js    # localStorage adapter (browser)
@@ -118,7 +119,7 @@ The core ESM bundle (core + IDB adapter) must stay under **5KB gzipped**. Run `n
 Open an issue at [github.com/MauricioPerera/easydb/issues](https://github.com/MauricioPerera/easydb/issues) with:
 
 1. EasyDB version
-2. Adapter used (IDB, Memory, D1, KV, SQLite, PostgreSQL, Redis, Turso, localStorage)
+2. Adapter used (IDB, Memory, D1, KV, SQLite, PostgreSQL, MySQL/MariaDB, Redis, Turso, localStorage)
 3. Browser/runtime and version
 4. Minimal reproduction code
 5. Expected vs. actual behavior
