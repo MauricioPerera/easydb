@@ -71,3 +71,24 @@ export function useRecord<T>(
   key: any,
   opts?: UseQueryOptions,
 ): UseRecordResult<T>;
+
+export interface UseSyncStatusResult {
+  /** Whether the sync engine is currently running. */
+  running: boolean;
+  /** Whether the sync engine is paused. */
+  paused: boolean;
+  /** The last sync event emitted, or null. */
+  lastEvent: import('./sync.js').SyncEvent | null;
+  /** The last sync error, or null. */
+  error: { err: Error; context: import('./sync.js').SyncErrorContext } | null;
+}
+
+/**
+ * React hook that tracks SyncEngine status reactively.
+ *
+ * @example
+ * const { running, paused, lastEvent, error } = useSyncStatus(syncEngine);
+ */
+export function useSyncStatus(
+  syncEngine: import('./sync.js').SyncEngine,
+): UseSyncStatusResult;

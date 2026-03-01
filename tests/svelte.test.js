@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EasyDB, MemoryAdapter } from '../src/easydb.js';
-import { queryStore, recordStore } from '../src/svelte.js';
+import { queryStore, recordStore, syncStatusStore } from '../src/svelte.js';
+import { SyncEngine } from '../src/sync.js';
 
 // Helper: wait for async effects to settle
 const tick = (ms = 20) => new Promise(r => setTimeout(r, ms));
@@ -155,6 +156,70 @@ describe('Svelte integration', () => {
       await tick();
       expect(state.data.name).toBe('Bob Updated');
       unsub();
+    });
+  });
+
+  describe('syncStatusStore()', () => {
+    let db2, sync;
+
+    beforeEach(async () => {
+      db2 = await EasyDB.open('svelte-sync-target-' + Math.random(), {
+        adapter: new MemoryAdapter(),
+        schema(b) { b.createStore('users', { key: 'id' }); },
+      });
+      sync = new SyncEngine(db, db2, {
+        stores: ['users'],
+        direction: 'push',
+      });
+    });
+
+    it('emits initial status on subscribe', () => {
+      const store = syncStatusStore(sync);
+      let state;
+      const unsub = store.subscribe(s => { state = s; });
+      expect(state.running).toBe(false);
+      expect(state.paused).toBe(false);
+      expect(state.lastEvent).toBeNull();
+      expect(state.error).toBeNull();
+      unsub();
+    });
+
+    it('tracks sync events', async () => {
+      sync.start();
+      const store = syncStatusStore(sync);
+      let state;
+      const unsub = store.subscribe(s => { state = s; });
+
+      await db.users.put({ id: 10, name: 'New', role: 'test' });
+      await tick(50);
+
+      expect(state.lastEvent).not.toBeNull();
+      expect(state.lastEvent.store).toBe('users');
+      expect(state.lastEvent.type).toBe('put');
+
+      unsub();
+      sync.stop();
+    });
+
+    it('tracks errors', () => {
+      const store = syncStatusStore(sync);
+      let state;
+      const unsub = store.subscribe(s => { state = s; });
+
+      sync._onError(new Error('svelte sync err'), { op: 'push', store: 'users' });
+
+      expect(state.error).not.toBeNull();
+      expect(state.error.err.message).toBe('svelte sync err');
+      unsub();
+    });
+
+    it('cleans up on unsubscribe', () => {
+      const store = syncStatusStore(sync);
+      const unsub = store.subscribe(() => {});
+      unsub();
+      // After unsub, original callbacks should be restored
+      expect(sync._onSync).toBeNull();
+      expect(sync._onError).toBeNull();
     });
   });
 });

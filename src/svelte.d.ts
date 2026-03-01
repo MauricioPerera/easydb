@@ -45,3 +45,14 @@ export declare function recordStore<T = any>(
   key: any,
   opts?: QueryStoreOptions,
 ): RecordStoreResult<T>;
+
+interface SyncStatusState {
+  running: boolean;
+  paused: boolean;
+  lastEvent: import('./sync.js').SyncEvent | null;
+  error: { err: Error; context: import('./sync.js').SyncErrorContext } | null;
+}
+
+export declare function syncStatusStore(
+  syncEngine: import('./sync.js').SyncEngine,
+): Readable<SyncStatusState>;
