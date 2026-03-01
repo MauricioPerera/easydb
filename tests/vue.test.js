@@ -31,7 +31,8 @@ vi.mock('vue', () => {
 });
 
 import { EasyDB, MemoryAdapter } from '../src/easydb.js';
-import { useQuery, useRecord } from '../src/vue.js';
+import { useQuery, useRecord, useSyncStatus } from '../src/vue.js';
+import { SyncEngine } from '../src/sync.js';
 
 const tick = (ms = 20) => new Promise(r => setTimeout(r, ms));
 
@@ -176,6 +177,58 @@ describe('Vue integration', () => {
       const keyRef = { value: 1, __v_isRef: true };
       useRecord(db.users, keyRef);
       expect(_watchers.some(w => w.source === keyRef)).toBe(true);
+    });
+  });
+
+  describe('useSyncStatus()', () => {
+    let db2, sync;
+
+    beforeEach(async () => {
+      db2 = await EasyDB.open('vue-sync-target-' + Math.random(), {
+        adapter: new MemoryAdapter(),
+        schema(b) { b.createStore('users', { key: 'id' }); },
+      });
+      sync = new SyncEngine(db, db2, {
+        stores: ['users'],
+        direction: 'push',
+      });
+    });
+
+    it('returns reactive refs with initial status', () => {
+      const s = useSyncStatus(sync);
+      expect(s.running.value).toBe(false);
+      expect(s.paused.value).toBe(false);
+      expect(s.lastEvent.value).toBeNull();
+      expect(s.error.value).toBeNull();
+    });
+
+    it('tracks sync events', async () => {
+      sync.start();
+      const s = useSyncStatus(sync);
+
+      await db.users.put({ id: 10, name: 'New', role: 'test' });
+      await tick(50);
+
+      expect(s.lastEvent.value).not.toBeNull();
+      expect(s.lastEvent.value.store).toBe('users');
+      expect(s.lastEvent.value.type).toBe('put');
+
+      sync.stop();
+    });
+
+    it('tracks errors', () => {
+      const s = useSyncStatus(sync);
+
+      sync._onError(new Error('vue sync err'), { op: 'push', store: 'users' });
+
+      expect(s.error.value).not.toBeNull();
+      expect(s.error.value.err.message).toBe('vue sync err');
+    });
+
+    it('registers onUnmounted cleanup', () => {
+      const before = _unmountCallbacks.length;
+      useSyncStatus(sync);
+      expect(_unmountCallbacks.length).toBeGreaterThan(before);
     });
   });
 });

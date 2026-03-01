@@ -114,6 +114,47 @@ export function useQuery(queryOrStore, opts = {}) {
  * @param {boolean} [opts.watch=true] - Auto-refresh when the record changes
  * @returns {{ data: Ref<T|undefined>, loading: Ref<boolean>, error: Ref<Error|null>, refresh: () => void }}
  */
+/**
+ * Vue composable that tracks SyncEngine status reactively.
+ *
+ * @param {import('./sync.js').SyncEngine} syncEngine
+ * @returns {{ running: Ref<boolean>, paused: Ref<boolean>, lastEvent: Ref<SyncEvent|null>, error: Ref<object|null> }}
+ */
+export function useSyncStatus(syncEngine) {
+  const running = ref(syncEngine.running);
+  const paused = ref(syncEngine.paused);
+  const lastEvent = ref(null);
+  const error = ref(null);
+
+  const originalOnSync = syncEngine._onSync;
+  const originalOnError = syncEngine._onError;
+
+  syncEngine._onSync = (event) => {
+    lastEvent.value = event;
+    running.value = syncEngine.running;
+    paused.value = syncEngine.paused;
+    if (originalOnSync) originalOnSync(event);
+  };
+
+  syncEngine._onError = (err, context) => {
+    error.value = { err, context };
+    if (originalOnError) originalOnError(err, context);
+  };
+
+  const timer = setInterval(() => {
+    running.value = syncEngine.running;
+    paused.value = syncEngine.paused;
+  }, 500);
+
+  onUnmounted(() => {
+    clearInterval(timer);
+    syncEngine._onSync = originalOnSync;
+    syncEngine._onError = originalOnError;
+  });
+
+  return { running, paused, lastEvent, error };
+}
+
 export function useRecord(store, key, opts = {}) {
   const watchEnabled = opts.watch !== false;
   const data = ref(undefined);

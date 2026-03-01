@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.2.0 — 2026-02-28
+
+### New Features
+- **SyncEngine** — Cross-adapter database synchronization (`@rckflr/easydb/sync`)
+  - Push mode: watch-based real-time replication from source to target
+  - Pull mode: polling-based replication from target to source
+  - Bidirectional mode: watch-based sync in both directions with re-entrancy guard
+  - One-time full sync via `syncAll()` and `syncStore()`
+  - Configurable conflict resolution: `source-wins`, `target-wins`, `last-write-wins`, `manual`
+  - Custom `onConflict` callback for manual merge logic
+  - Pause/resume with event queuing
+  - `onSync` and `onError` callbacks for monitoring
+  - 34 tests covering push, pull, bidirectional, conflicts, lifecycle, and edge cases
+
+### Testing
+- 696 tests total (up from 662)
+
 ## v1.1.0 — 2026-02-28
 
 ### New Storage Adapters

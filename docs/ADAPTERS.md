@@ -341,3 +341,62 @@ If you don't specify an adapter, EasyDB picks one automatically:
 | Node.js / Deno / Bun | MemoryAdapter |
 
 For all other adapters, you must pass the adapter explicitly because they require runtime bindings or connections.
+
+---
+
+## Cross-Adapter Sync
+
+EasyDB's `SyncEngine` lets you synchronize data between any two adapters. This enables offline-first patterns (IndexedDB ↔ PostgreSQL), edge replication (Memory ↔ D1), and multi-device sync.
+
+```javascript
+import { SyncEngine } from '@rckflr/easydb/sync';
+
+const local  = await EasyDB.open('app', { adapter: new IDBAdapter(), schema });
+const remote = await EasyDB.open('app', { adapter: new PostgresAdapter(pool), schema });
+
+const sync = new SyncEngine(local, remote, {
+  stores: ['users', 'orders'],
+  direction: 'bidirectional',
+  conflict: 'last-write-wins',
+  timestampField: 'updatedAt',
+});
+
+sync.start();
+```
+
+### Sync Modes
+
+| Mode | Mechanism | Use Case |
+|------|-----------|----------|
+| `push` | Watch-based (real-time) | Local changes → server |
+| `pull` | Polling (configurable interval) | Server changes → local |
+| `bidirectional` | Watch both sides | Multi-device / offline-first |
+
+### Conflict Resolution
+
+| Strategy | Behavior |
+|----------|----------|
+| `source-wins` (default) | Source value always wins |
+| `target-wins` | Target value always wins |
+| `last-write-wins` | Compare timestamp fields, newest wins |
+| `manual` | Call `onConflict(store, key, srcVal, tgtVal)` for custom merge |
+
+### Common Patterns
+
+**Offline-first browser app:**
+```
+Browser (IDBAdapter) ←→ Server (PostgresAdapter)
+direction: 'bidirectional', conflict: 'last-write-wins'
+```
+
+**Edge caching:**
+```
+Worker (MemoryAdapter) ← Server (D1Adapter)
+direction: 'pull', pullInterval: 10000
+```
+
+**Background backup:**
+```
+Primary (SQLiteAdapter) → Backup (PostgresAdapter)
+direction: 'push'
+```

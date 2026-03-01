@@ -1,6 +1,6 @@
 {
   "name": "@rckflr/easydb",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Multi-backend storage with async/await, async iterables, and modern JavaScript — IndexedDB, Memory, D1/SQLite, PostgreSQL, Redis, Turso, localStorage",
   "main": "src/easydb.js",
   "module": "src/easydb.js",
@@ -76,6 +76,10 @@
     "./lit": {
       "import": "./src/lit.js",
       "types": "./src/lit.d.ts"
+    },
+    "./sync": {
+      "import": "./src/sync.js",
+      "types": "./src/sync.d.ts"
     }
   },
   "files": [
@@ -88,7 +92,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "metrics": "echo \"Core: $(wc -l < src/easydb.js) LOC | IDB: $(wc -l < src/adapters/indexeddb.js) LOC | Mem: $(wc -l < src/adapters/memory.js) LOC | D1: $(wc -l < src/adapters/d1.js) LOC | Browser gzip: $(cat src/easydb.js src/adapters/indexeddb.js | gzip -c | wc -c)B | Workers gzip: $(cat src/easydb.js src/adapters/d1.js | gzip -c | wc -c)B\"",
+    "metrics": "echo \"Core: $(wc -l < src/easydb.js) LOC | IDB: $(wc -l < src/adapters/indexeddb.js) LOC | Mem: $(wc -l < src/adapters/memory.js) LOC | D1: $(wc -l < src/adapters/d1.js) LOC | Sync: $(wc -l < src/sync.js) LOC | Browser gzip: $(cat src/easydb.js src/adapters/indexeddb.js | gzip -c | wc -c)B | Workers gzip: $(cat src/easydb.js src/adapters/d1.js | gzip -c | wc -c)B | Sync gzip: $(cat src/sync.js | gzip -c | wc -c)B\"",
     "build": "node scripts/build.js",
     "bench": "node benchmarks/run.js",
     "demo": "open demo/index.html"
@@ -123,7 +127,10 @@
     "solid-js",
     "preact",
     "lit",
-    "web-components"
+    "web-components",
+    "sync",
+    "replication",
+    "offline-first"
   ],
   "author": "Mauricio Perera <https://automators.work>",
   "license": "MIT",

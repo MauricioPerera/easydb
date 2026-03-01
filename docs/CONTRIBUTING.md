@@ -34,7 +34,7 @@ npm run test:watch    # Watch mode
 npm run test:coverage # With coverage report
 ```
 
-All 289 tests must pass before submitting a PR.
+All tests must pass before submitting a PR.
 
 ## Project Structure
 
@@ -42,15 +42,27 @@ All 289 tests must pass before submitting a PR.
 src/
   easydb.js           # Core API (~400 LOC)
   easydb.d.ts         # TypeScript declarations
+  sync.js             # SyncEngine — cross-adapter replication
+  sync.d.ts           # SyncEngine type declarations
   adapters/
     indexeddb.js       # Browser IndexedDB adapter
     memory.js          # In-memory adapter (testing/SSR)
     d1.js              # Cloudflare D1/SQLite adapter
     kv.js              # Cloudflare KV adapter
+    sqlite.js          # SQLite adapter (better-sqlite3)
+    postgres.js        # PostgreSQL adapter (node-postgres/Neon)
+    redis.js           # Redis adapter (ioredis/Upstash)
+    turso.js           # Turso/libSQL adapter
+    localstorage.js    # localStorage adapter (browser)
   react.js             # React hooks
   vue.js               # Vue composables
   svelte.js            # Svelte stores
+  angular.js           # Angular signals
+  solid.js             # SolidJS signals
+  preact.js            # Preact hooks
+  lit.js               # Lit reactive controller
 tests/                 # Vitest test files
+examples/              # Usage examples
 scripts/
   build.js             # CDN build script (esbuild)
 ```
@@ -85,10 +97,9 @@ class MyAdapter {
 ## What We're Looking For
 
 - Bug fixes with regression tests
-- New adapters (Redis, PostgreSQL, localStorage, etc.)
 - Performance improvements with benchmarks
 - Documentation improvements
-- Framework integrations beyond React/Vue/Svelte
+- New framework integrations
 
 ## What We're NOT Looking For
 
@@ -107,7 +118,7 @@ The core ESM bundle (core + IDB adapter) must stay under **5KB gzipped**. Run `n
 Open an issue at [github.com/MauricioPerera/easydb/issues](https://github.com/MauricioPerera/easydb/issues) with:
 
 1. EasyDB version
-2. Adapter used (IDB, Memory, D1, KV)
+2. Adapter used (IDB, Memory, D1, KV, SQLite, PostgreSQL, Redis, Turso, localStorage)
 3. Browser/runtime and version
 4. Minimal reproduction code
 5. Expected vs. actual behavior

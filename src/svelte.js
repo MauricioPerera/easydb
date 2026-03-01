@@ -101,6 +101,62 @@ export function queryStore(queryOrStore, opts = {}) {
  * @param {boolean} [opts.watch=true] - Auto-refresh when the record changes
  * @returns {{ subscribe: Function, refresh: Function }}
  */
+/**
+ * Creates a Svelte readable store that tracks SyncEngine status.
+ *
+ * @param {import('./sync.js').SyncEngine} syncEngine
+ * @returns {{ subscribe: Function }} - { running, paused, lastEvent, error }
+ */
+export function syncStatusStore(syncEngine) {
+  let state = { running: syncEngine.running, paused: syncEngine.paused, lastEvent: null, error: null };
+  const subscribers = new Set();
+
+  function set(newState) {
+    state = newState;
+    for (const cb of subscribers) cb(state);
+  }
+
+  const originalOnSync = syncEngine._onSync;
+  const originalOnError = syncEngine._onError;
+
+  syncEngine._onSync = (event) => {
+    set({ ...state, running: syncEngine.running, paused: syncEngine.paused, lastEvent: event });
+    if (originalOnSync) originalOnSync(event);
+  };
+
+  syncEngine._onError = (err, context) => {
+    set({ ...state, error: { err, context } });
+    if (originalOnError) originalOnError(err, context);
+  };
+
+  let timer = null;
+
+  return {
+    subscribe(cb) {
+      subscribers.add(cb);
+      cb(state);
+
+      if (subscribers.size === 1) {
+        timer = setInterval(() => {
+          if (state.running !== syncEngine.running || state.paused !== syncEngine.paused) {
+            set({ ...state, running: syncEngine.running, paused: syncEngine.paused });
+          }
+        }, 500);
+      }
+
+      return () => {
+        subscribers.delete(cb);
+        if (subscribers.size === 0 && timer) {
+          clearInterval(timer);
+          timer = null;
+          syncEngine._onSync = originalOnSync;
+          syncEngine._onError = originalOnError;
+        }
+      };
+    },
+  };
+}
+
 export function recordStore(store, key, opts = {}) {
   const watchEnabled = opts.watch !== false;
 
