@@ -92,7 +92,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "metrics": "echo \"Core: $(wc -l < src/easydb.js) LOC | IDB: $(wc -l < src/adapters/indexeddb.js) LOC | Mem: $(wc -l < src/adapters/memory.js) LOC | D1: $(wc -l < src/adapters/d1.js) LOC | Browser gzip: $(cat src/easydb.js src/adapters/indexeddb.js | gzip -c | wc -c)B | Workers gzip: $(cat src/easydb.js src/adapters/d1.js | gzip -c | wc -c)B\"",
+    "metrics": "echo \"Core: $(wc -l < src/easydb.js) LOC | IDB: $(wc -l < src/adapters/indexeddb.js) LOC | Mem: $(wc -l < src/adapters/memory.js) LOC | D1: $(wc -l < src/adapters/d1.js) LOC | Sync: $(wc -l < src/sync.js) LOC | Browser gzip: $(cat src/easydb.js src/adapters/indexeddb.js | gzip -c | wc -c)B | Workers gzip: $(cat src/easydb.js src/adapters/d1.js | gzip -c | wc -c)B | Sync gzip: $(cat src/sync.js | gzip -c | wc -c)B\"",
     "build": "node scripts/build.js",
     "bench": "node benchmarks/run.js",
     "demo": "open demo/index.html"
