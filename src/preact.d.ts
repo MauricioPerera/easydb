@@ -49,3 +49,14 @@ export declare function useRecord<T = any>(
   key: any,
   opts?: UseQueryOptions,
 ): UseRecordResult<T>;
+
+export interface UseSyncStatusResult {
+  running: boolean;
+  paused: boolean;
+  lastEvent: import('./sync.js').SyncEvent | null;
+  error: { err: Error; context: import('./sync.js').SyncErrorContext } | null;
+}
+
+export declare function useSyncStatus(
+  syncEngine: import('./sync.js').SyncEngine,
+): UseSyncStatusResult;

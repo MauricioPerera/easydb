@@ -123,6 +123,66 @@ export class EasyDBQueryController {
 }
 
 /**
+ * Lit ReactiveController that tracks SyncEngine status
+ * and triggers host updates on sync events.
+ */
+export class EasyDBSyncStatusController {
+  /**
+   * @param {ReactiveControllerHost} host - The Lit element
+   * @param {import('./sync.js').SyncEngine} syncEngine
+   */
+  constructor(host, syncEngine) {
+    this._host = host;
+    this._syncEngine = syncEngine;
+    this.running = syncEngine.running;
+    this.paused = syncEngine.paused;
+    this.lastEvent = null;
+    this.error = null;
+    this._timer = null;
+    this._originalOnSync = null;
+    this._originalOnError = null;
+
+    host.addController(this);
+  }
+
+  hostConnected() {
+    this._originalOnSync = this._syncEngine._onSync;
+    this._originalOnError = this._syncEngine._onError;
+
+    this._syncEngine._onSync = (event) => {
+      this.lastEvent = event;
+      this.running = this._syncEngine.running;
+      this.paused = this._syncEngine.paused;
+      this._host.requestUpdate();
+      if (this._originalOnSync) this._originalOnSync(event);
+    };
+
+    this._syncEngine._onError = (err, context) => {
+      this.error = { err, context };
+      this._host.requestUpdate();
+      if (this._originalOnError) this._originalOnError(err, context);
+    };
+
+    this._timer = setInterval(() => {
+      if (this.running !== this._syncEngine.running || this.paused !== this._syncEngine.paused) {
+        this.running = this._syncEngine.running;
+        this.paused = this._syncEngine.paused;
+        this._host.requestUpdate();
+      }
+    }, 500);
+  }
+
+  hostDisconnected() {
+    if (this._timer) {
+      clearInterval(this._timer);
+      this._timer = null;
+    }
+    this._syncEngine._onSync = this._originalOnSync;
+    this._syncEngine._onError = this._originalOnError;
+  }
+}
+
+/**
  * Lit ReactiveController that fetches a single record by key
  * and triggers host updates on data changes.
  */

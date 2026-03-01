@@ -192,3 +192,44 @@ export function createRecord(store, key, opts = {}) {
 
   return { data, loading, error, refresh };
 }
+
+/**
+ * Creates Solid signals that track SyncEngine status.
+ *
+ * @param {import('./sync.js').SyncEngine} syncEngine
+ * @returns {{ running: Accessor<boolean>, paused: Accessor<boolean>, lastEvent: Accessor<SyncEvent|null>, error: Accessor<object|null> }}
+ */
+export function createSyncStatus(syncEngine) {
+  const [running, setRunning] = createSignal(syncEngine.running);
+  const [paused, setPaused] = createSignal(syncEngine.paused);
+  const [lastEvent, setLastEvent] = createSignal(null);
+  const [error, setError] = createSignal(null);
+
+  const originalOnSync = syncEngine._onSync;
+  const originalOnError = syncEngine._onError;
+
+  syncEngine._onSync = (event) => {
+    setLastEvent(event);
+    setRunning(syncEngine.running);
+    setPaused(syncEngine.paused);
+    if (originalOnSync) originalOnSync(event);
+  };
+
+  syncEngine._onError = (err, context) => {
+    setError({ err, context });
+    if (originalOnError) originalOnError(err, context);
+  };
+
+  const timer = setInterval(() => {
+    setRunning(syncEngine.running);
+    setPaused(syncEngine.paused);
+  }, 500);
+
+  onCleanup(() => {
+    clearInterval(timer);
+    syncEngine._onSync = originalOnSync;
+    syncEngine._onError = originalOnError;
+  });
+
+  return { running, paused, lastEvent, error };
+}

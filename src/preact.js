@@ -104,6 +104,50 @@ export function useQuery(queryOrStore, opts = {}) {
  * @param {boolean} [opts.watch=true] - Auto-refresh when the key changes
  * @returns {{ data: T|undefined, loading: boolean, error: Error|null, refresh: () => void }}
  */
+/**
+ * Preact hook that tracks SyncEngine status reactively.
+ *
+ * @param {import('./sync.js').SyncEngine} syncEngine
+ * @returns {{ running: boolean, paused: boolean, lastEvent: SyncEvent|null, error: { err: Error, context: object }|null }}
+ */
+export function useSyncStatus(syncEngine) {
+  const [running, setRunning] = useState(syncEngine.running);
+  const [paused, setPaused] = useState(syncEngine.paused);
+  const [lastEvent, setLastEvent] = useState(null);
+  const [error, setError] = useState(null);
+  const originalRef = useRef({ onSync: null, onError: null });
+
+  useEffect(() => {
+    originalRef.current.onSync = syncEngine._onSync;
+    originalRef.current.onError = syncEngine._onError;
+
+    syncEngine._onSync = (event) => {
+      setLastEvent(event);
+      setRunning(syncEngine.running);
+      setPaused(syncEngine.paused);
+      if (originalRef.current.onSync) originalRef.current.onSync(event);
+    };
+
+    syncEngine._onError = (err, context) => {
+      setError({ err, context });
+      if (originalRef.current.onError) originalRef.current.onError(err, context);
+    };
+
+    const timer = setInterval(() => {
+      setRunning(syncEngine.running);
+      setPaused(syncEngine.paused);
+    }, 500);
+
+    return () => {
+      clearInterval(timer);
+      syncEngine._onSync = originalRef.current.onSync;
+      syncEngine._onError = originalRef.current.onError;
+    };
+  }, [syncEngine]);
+
+  return { running, paused, lastEvent, error };
+}
+
 export function useRecord(store, key, opts = {}) {
   const watchEnabled = opts.watch !== false;
   const [data, setData] = useState(undefined);

@@ -234,40 +234,46 @@ const status = syncStatusStore(syncEngine);
 ### Angular 16+
 
 ```typescript
-import { createQuery, createRecord } from '@rckflr/easydb/angular';
+import { createQuery, createRecord, createSyncStatus } from '@rckflr/easydb/angular';
 
 @Component({ template: `@for (user of users.data(); track user.id) { ... }` })
 class UserList {
   users = createQuery(db.users);          // Signal-based
   admins = createQuery(() => db.users.where('role', 'admin'));  // Reactive
+  sync = createSyncStatus(syncEngine);    // sync.running(), sync.lastEvent()
 }
 ```
 
 ### Solid.js
 
 ```javascript
-import { createQuery, createRecord } from '@rckflr/easydb/solid';
+import { createQuery, createRecord, createSyncStatus } from '@rckflr/easydb/solid';
 
 function UserList() {
   const users = createQuery(db.users);
-  return <For each={users.data()}>{u => <p>{u.name}</p>}</For>;
+  const sync = createSyncStatus(syncEngine);
+  return <>
+    <Show when={sync.running()}>Syncing...</Show>
+    <For each={users.data()}>{u => <p>{u.name}</p>}</For>
+  </>;
 }
 ```
 
 ### Preact
 
 ```javascript
-import { useQuery, useRecord } from '@rckflr/easydb/preact';
-// Same API as React — drop-in replacement
+import { useQuery, useRecord, useSyncStatus } from '@rckflr/easydb/preact';
+// Same API as React — drop-in replacement (includes useSyncStatus)
 ```
 
 ### Lit
 
 ```javascript
-import { EasyDBQueryController, EasyDBRecordController } from '@rckflr/easydb/lit';
+import { EasyDBQueryController, EasyDBSyncStatusController } from '@rckflr/easydb/lit';
 
 class UserList extends LitElement {
   _users = new EasyDBQueryController(this, db.users);
+  _sync = new EasyDBSyncStatusController(this, syncEngine);
   render() {
     const { data, loading } = this._users;
     return loading ? html`<p>Loading...</p>` : html`<ul>${data.map(u => html`<li>${u.name}</li>`)}</ul>`;

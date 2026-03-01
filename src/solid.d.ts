@@ -51,3 +51,14 @@ export declare function createRecord<T = any>(
   key: any | (() => any),
   opts?: QueryOptions,
 ): RecordResult<T>;
+
+interface SyncStatusResult {
+  running: Accessor<boolean>;
+  paused: Accessor<boolean>;
+  lastEvent: Accessor<import('./sync.js').SyncEvent | null>;
+  error: Accessor<{ err: Error; context: import('./sync.js').SyncErrorContext } | null>;
+}
+
+export declare function createSyncStatus(
+  syncEngine: import('./sync.js').SyncEngine,
+): SyncStatusResult;

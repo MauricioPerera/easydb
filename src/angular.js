@@ -124,6 +124,61 @@ export function createQuery(queryOrStore, opts = {}) {
 }
 
 /**
+ * Creates Angular signals that track SyncEngine status.
+ *
+ * @param {import('./sync.js').SyncEngine} syncEngine
+ * @returns {{ running: Signal<boolean>, paused: Signal<boolean>, lastEvent: Signal<SyncEvent|null>, error: Signal<object|null>, cleanup: () => void }}
+ */
+export function createSyncStatus(syncEngine) {
+  const running = signal(syncEngine.running);
+  const paused = signal(syncEngine.paused);
+  const lastEvent = signal(null);
+  const error = signal(null);
+
+  const originalOnSync = syncEngine._onSync;
+  const originalOnError = syncEngine._onError;
+
+  syncEngine._onSync = (event) => {
+    lastEvent.set(event);
+    running.set(syncEngine.running);
+    paused.set(syncEngine.paused);
+    if (originalOnSync) originalOnSync(event);
+  };
+
+  syncEngine._onError = (err, context) => {
+    error.set({ err, context });
+    if (originalOnError) originalOnError(err, context);
+  };
+
+  const timer = setInterval(() => {
+    running.set(syncEngine.running);
+    paused.set(syncEngine.paused);
+  }, 500);
+
+  function cleanup() {
+    clearInterval(timer);
+    syncEngine._onSync = originalOnSync;
+    syncEngine._onError = originalOnError;
+  }
+
+  // Auto-cleanup in injection context
+  try {
+    const destroyRef = inject(DestroyRef);
+    destroyRef.onDestroy(cleanup);
+  } catch (_) {
+    // Not in injection context — caller manages cleanup
+  }
+
+  return {
+    running: running.asReadonly(),
+    paused: paused.asReadonly(),
+    lastEvent: lastEvent.asReadonly(),
+    error: error.asReadonly(),
+    cleanup,
+  };
+}
+
+/**
  * Creates Angular signals for a single record by key.
  *
  * @param {StoreAccessor} store - e.g., db.users

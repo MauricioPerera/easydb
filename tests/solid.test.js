@@ -27,7 +27,8 @@ vi.mock('solid-js', () => {
 });
 
 import { EasyDB, MemoryAdapter } from '../src/easydb.js';
-import { createQuery, createRecord } from '../src/solid.js';
+import { createQuery, createRecord, createSyncStatus } from '../src/solid.js';
+import { SyncEngine } from '../src/sync.js';
 
 const tick = (ms = 20) => new Promise(r => setTimeout(r, ms));
 
@@ -172,6 +173,58 @@ describe('Solid.js integration', () => {
       const r = createRecord(db.users, () => 1);
       await tick();
       expect(r.data()).toEqual({ id: 1, name: 'Alice', role: 'admin' });
+    });
+  });
+
+  describe('createSyncStatus()', () => {
+    let db2, sync;
+
+    beforeEach(async () => {
+      db2 = await EasyDB.open('solid-sync-target-' + Math.random(), {
+        adapter: new MemoryAdapter(),
+        schema(b) { b.createStore('users', { key: 'id' }); },
+      });
+      sync = new SyncEngine(db, db2, {
+        stores: ['users'],
+        direction: 'push',
+      });
+    });
+
+    it('returns accessors with initial status', () => {
+      const s = createSyncStatus(sync);
+      expect(s.running()).toBe(false);
+      expect(s.paused()).toBe(false);
+      expect(s.lastEvent()).toBeNull();
+      expect(s.error()).toBeNull();
+    });
+
+    it('tracks sync events', async () => {
+      sync.start();
+      const s = createSyncStatus(sync);
+
+      await db.users.put({ id: 10, name: 'New', role: 'test' });
+      await tick(50);
+
+      expect(s.lastEvent()).not.toBeNull();
+      expect(s.lastEvent().store).toBe('users');
+      expect(s.lastEvent().type).toBe('put');
+
+      sync.stop();
+    });
+
+    it('tracks errors', () => {
+      const s = createSyncStatus(sync);
+
+      sync._onError(new Error('solid sync err'), { op: 'push', store: 'users' });
+
+      expect(s.error()).not.toBeNull();
+      expect(s.error().err.message).toBe('solid sync err');
+    });
+
+    it('registers cleanup via onCleanup', () => {
+      const before = _cleanupFns.length;
+      createSyncStatus(sync);
+      expect(_cleanupFns.length).toBeGreaterThan(before);
     });
   });
 });

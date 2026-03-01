@@ -52,3 +52,15 @@ export declare function createRecord<T = any>(
   key: any | (() => any),
   opts?: QueryOptions,
 ): RecordResult<T>;
+
+interface SyncStatusResult {
+  running: Signal<boolean>;
+  paused: Signal<boolean>;
+  lastEvent: Signal<import('./sync.js').SyncEvent | null>;
+  error: Signal<{ err: Error; context: import('./sync.js').SyncErrorContext } | null>;
+  cleanup: () => void;
+}
+
+export declare function createSyncStatus(
+  syncEngine: import('./sync.js').SyncEngine,
+): SyncStatusResult;

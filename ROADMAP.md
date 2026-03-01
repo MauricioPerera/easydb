@@ -131,6 +131,13 @@ Same code everywhere:
 - [x] Svelte store: `queryStore(query)` + `recordStore(store, key)` with subscribe contract
 - [x] All hooks auto-refresh via watch when underlying data changes
 
+### Cross-adapter sync (v1.2.0) ✅
+
+- [x] SyncEngine: push, pull, and bidirectional sync between any two EasyDB instances
+- [x] Conflict resolution: `source-wins`, `target-wins`, `last-write-wins`, `manual`
+- [x] Pause/resume with event queuing
+- [x] Sync status hooks for all 7 frameworks (React, Vue, Svelte, Angular, Solid, Preact, Lit)
+
 ### Pagination ✅
 
 - [x] `skip(n)` and `page(pageNum, pageSize)` on QueryBuilder

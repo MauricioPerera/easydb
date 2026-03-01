@@ -45,6 +45,21 @@ export declare class EasyDBQueryController<T = any> implements ReactiveControlle
   refresh(): void;
 }
 
+export declare class EasyDBSyncStatusController implements ReactiveController {
+  running: boolean;
+  paused: boolean;
+  lastEvent: import('./sync.js').SyncEvent | null;
+  error: { err: Error; context: import('./sync.js').SyncErrorContext } | null;
+
+  constructor(
+    host: ReactiveControllerHost,
+    syncEngine: import('./sync.js').SyncEngine,
+  );
+
+  hostConnected(): void;
+  hostDisconnected(): void;
+}
+
 export declare class EasyDBRecordController<T = any> implements ReactiveController {
   data: T | undefined;
   loading: boolean;
