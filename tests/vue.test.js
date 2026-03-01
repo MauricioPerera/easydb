@@ -219,7 +219,7 @@ describe('Vue integration', () => {
     it('tracks errors', () => {
       const s = useSyncStatus(sync);
 
-      sync._onError(new Error('vue sync err'), { op: 'push', store: 'users' });
+      sync._handleError(new Error('vue sync err'), { op: 'push', store: 'users' });
 
       expect(s.error.value).not.toBeNull();
       expect(s.error.value.err.message).toBe('vue sync err');

@@ -106,4 +106,13 @@ export declare class SyncEngine {
    * Perform a one-time full sync of a single store.
    */
   syncStore(storeName: string): Promise<void>;
+
+  /**
+   * Register a status listener. Returns an unsubscribe function.
+   * Safe for multiple concurrent listeners.
+   */
+  addListener(listener: {
+    onSync?: (event: SyncEvent) => void;
+    onError?: (err: Error, context: SyncErrorContext) => void;
+  }): () => void;
 }

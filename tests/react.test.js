@@ -196,7 +196,7 @@ describe('React integration', () => {
       const s = renderHook(useSyncStatus, sync);
 
       // Simulate an error via the intercepted onError
-      sync._onError(new Error('test err'), { op: 'push', store: 'users' });
+      sync._handleError(new Error('test err'), { op: 'push', store: 'users' });
 
       // error is at state index 3
       expect(_states[3]).not.toBeNull();

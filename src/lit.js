@@ -138,47 +138,31 @@ export class EasyDBSyncStatusController {
     this.paused = syncEngine.paused;
     this.lastEvent = null;
     this.error = null;
-    this._timer = null;
-    this._originalOnSync = null;
-    this._originalOnError = null;
+    this._unsubscribe = null;
 
     host.addController(this);
   }
 
   hostConnected() {
-    this._originalOnSync = this._syncEngine._onSync;
-    this._originalOnError = this._syncEngine._onError;
-
-    this._syncEngine._onSync = (event) => {
-      this.lastEvent = event;
-      this.running = this._syncEngine.running;
-      this.paused = this._syncEngine.paused;
-      this._host.requestUpdate();
-      if (this._originalOnSync) this._originalOnSync(event);
-    };
-
-    this._syncEngine._onError = (err, context) => {
-      this.error = { err, context };
-      this._host.requestUpdate();
-      if (this._originalOnError) this._originalOnError(err, context);
-    };
-
-    this._timer = setInterval(() => {
-      if (this.running !== this._syncEngine.running || this.paused !== this._syncEngine.paused) {
+    this._unsubscribe = this._syncEngine.addListener({
+      onSync: (event) => {
+        this.lastEvent = event;
         this.running = this._syncEngine.running;
         this.paused = this._syncEngine.paused;
         this._host.requestUpdate();
-      }
-    }, 500);
+      },
+      onError: (err, context) => {
+        this.error = { err, context };
+        this._host.requestUpdate();
+      },
+    });
   }
 
   hostDisconnected() {
-    if (this._timer) {
-      clearInterval(this._timer);
-      this._timer = null;
+    if (this._unsubscribe) {
+      this._unsubscribe();
+      this._unsubscribe = null;
     }
-    this._syncEngine._onSync = this._originalOnSync;
-    this._syncEngine._onError = this._originalOnError;
   }
 }
 

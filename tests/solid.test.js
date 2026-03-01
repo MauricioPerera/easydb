@@ -215,7 +215,7 @@ describe('Solid.js integration', () => {
     it('tracks errors', () => {
       const s = createSyncStatus(sync);
 
-      sync._onError(new Error('solid sync err'), { op: 'push', store: 'users' });
+      sync._handleError(new Error('solid sync err'), { op: 'push', store: 'users' });
 
       expect(s.error()).not.toBeNull();
       expect(s.error().err.message).toBe('solid sync err');

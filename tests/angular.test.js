@@ -216,7 +216,7 @@ describe('Angular integration', () => {
     it('tracks errors', () => {
       const s = createSyncStatus(sync);
 
-      sync._onError(new Error('angular sync err'), { op: 'push', store: 'users' });
+      sync._handleError(new Error('angular sync err'), { op: 'push', store: 'users' });
 
       expect(s.error()).not.toBeNull();
       expect(s.error().err.message).toBe('angular sync err');

@@ -500,3 +500,56 @@ describe('SyncEngine — edge cases', () => {
     expect(await target.users.get(1)).toBeUndefined();
   });
 });
+
+// ── Listener API ──
+
+describe('SyncEngine — addListener', () => {
+  it('multiple listeners receive events independently', async () => {
+    const source = await EasyDB.open('listen-src-' + Math.random(), { adapter: new MemoryAdapter(), schema });
+    const target = await EasyDB.open('listen-tgt-' + Math.random(), { adapter: new MemoryAdapter(), schema });
+
+    const sync = new SyncEngine(source, target, {
+      stores: ['users'],
+      direction: 'push',
+    });
+
+    const events1 = [];
+    const events2 = [];
+
+    const unsub1 = sync.addListener({ onSync: e => events1.push(e) });
+    const unsub2 = sync.addListener({ onSync: e => events2.push(e) });
+
+    sync.start();
+    await source.users.put({ id: 1, name: 'A', role: 'admin' });
+    await tick(30);
+
+    expect(events1.length).toBeGreaterThan(0);
+    expect(events2.length).toBeGreaterThan(0);
+    expect(events1.length).toBe(events2.length);
+
+    // Unsubscribing one doesn't affect the other
+    unsub1();
+    await source.users.put({ id: 2, name: 'B', role: 'member' });
+    await tick(30);
+
+    const count1 = events1.length;
+    expect(events2.length).toBeGreaterThan(count1);
+
+    unsub2();
+    sync.stop();
+  });
+
+  it('unsubscribe is idempotent', () => {
+    const source = { _conn: { getKeyPath: () => 'id' } };
+    const sync = new SyncEngine(source, source, { stores: [] });
+
+    const unsub = sync.addListener({ onSync: () => {} });
+    expect(sync._listeners).toHaveLength(1);
+
+    unsub();
+    expect(sync._listeners).toHaveLength(0);
+
+    unsub(); // double-call is safe
+    expect(sync._listeners).toHaveLength(0);
+  });
+});

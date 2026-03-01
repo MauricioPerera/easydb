@@ -205,31 +205,18 @@ export function createSyncStatus(syncEngine) {
   const [lastEvent, setLastEvent] = createSignal(null);
   const [error, setError] = createSignal(null);
 
-  const originalOnSync = syncEngine._onSync;
-  const originalOnError = syncEngine._onError;
-
-  syncEngine._onSync = (event) => {
-    setLastEvent(event);
-    setRunning(syncEngine.running);
-    setPaused(syncEngine.paused);
-    if (originalOnSync) originalOnSync(event);
-  };
-
-  syncEngine._onError = (err, context) => {
-    setError({ err, context });
-    if (originalOnError) originalOnError(err, context);
-  };
-
-  const timer = setInterval(() => {
-    setRunning(syncEngine.running);
-    setPaused(syncEngine.paused);
-  }, 500);
-
-  onCleanup(() => {
-    clearInterval(timer);
-    syncEngine._onSync = originalOnSync;
-    syncEngine._onError = originalOnError;
+  const unsubscribe = syncEngine.addListener({
+    onSync(event) {
+      setLastEvent(event);
+      setRunning(syncEngine.running);
+      setPaused(syncEngine.paused);
+    },
+    onError(err, context) {
+      setError({ err, context });
+    },
   });
+
+  onCleanup(unsubscribe);
 
   return { running, paused, lastEvent, error };
 }

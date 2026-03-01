@@ -232,7 +232,7 @@ describe('Lit integration', () => {
       const ctrl = new EasyDBSyncStatusController(host, sync);
       host.connect();
 
-      sync._onError(new Error('lit sync err'), { op: 'push', store: 'users' });
+      sync._handleError(new Error('lit sync err'), { op: 'push', store: 'users' });
 
       expect(ctrl.error).not.toBeNull();
       expect(ctrl.error.err.message).toBe('lit sync err');
@@ -244,9 +244,8 @@ describe('Lit integration', () => {
       host.connect();
       host.disconnect();
 
-      // Original callbacks should be restored
-      expect(sync._onSync).toBeNull();
-      expect(sync._onError).toBeNull();
+      // Listener should be removed
+      expect(sync._listeners).toHaveLength(0);
     });
   });
 });

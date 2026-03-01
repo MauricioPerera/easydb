@@ -135,36 +135,21 @@ export function createSyncStatus(syncEngine) {
   const lastEvent = signal(null);
   const error = signal(null);
 
-  const originalOnSync = syncEngine._onSync;
-  const originalOnError = syncEngine._onError;
-
-  syncEngine._onSync = (event) => {
-    lastEvent.set(event);
-    running.set(syncEngine.running);
-    paused.set(syncEngine.paused);
-    if (originalOnSync) originalOnSync(event);
-  };
-
-  syncEngine._onError = (err, context) => {
-    error.set({ err, context });
-    if (originalOnError) originalOnError(err, context);
-  };
-
-  const timer = setInterval(() => {
-    running.set(syncEngine.running);
-    paused.set(syncEngine.paused);
-  }, 500);
-
-  function cleanup() {
-    clearInterval(timer);
-    syncEngine._onSync = originalOnSync;
-    syncEngine._onError = originalOnError;
-  }
+  const unsubscribe = syncEngine.addListener({
+    onSync(event) {
+      lastEvent.set(event);
+      running.set(syncEngine.running);
+      paused.set(syncEngine.paused);
+    },
+    onError(err, context) {
+      error.set({ err, context });
+    },
+  });
 
   // Auto-cleanup in injection context
   try {
     const destroyRef = inject(DestroyRef);
-    destroyRef.onDestroy(cleanup);
+    destroyRef.onDestroy(unsubscribe);
   } catch (_) {
     // Not in injection context — caller manages cleanup
   }
@@ -174,7 +159,7 @@ export function createSyncStatus(syncEngine) {
     paused: paused.asReadonly(),
     lastEvent: lastEvent.asReadonly(),
     error: error.asReadonly(),
-    cleanup,
+    cleanup: unsubscribe,
   };
 }
 

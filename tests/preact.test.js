@@ -195,7 +195,7 @@ describe('Preact integration', () => {
     it('tracks errors', () => {
       const s = renderHook(useSyncStatus, sync);
 
-      sync._onError(new Error('preact sync err'), { op: 'push', store: 'users' });
+      sync._handleError(new Error('preact sync err'), { op: 'push', store: 'users' });
 
       // error at state index 3
       expect(_states[3]).not.toBeNull();

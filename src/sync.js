@@ -59,6 +59,7 @@ export class SyncEngine {
     this._paused = false;
     this._pendingQueue = [];  // events queued while paused
     this._syncing = false;    // re-entrancy guard for bidirectional
+    this._listeners = [];     // registered status listeners
   }
 
   /** Whether the sync engine is currently running. */
@@ -366,17 +367,39 @@ export class SyncEngine {
     }
   }
 
+  // ── Listener API ───────────────────────────────────────
+
+  /**
+   * Register a status listener. Returns an unsubscribe function.
+   *
+   * @param {{ onSync?: (event: SyncEvent) => void, onError?: (err: Error, context: object) => void }} listener
+   * @returns {() => void} unsubscribe
+   */
+  addListener(listener) {
+    this._listeners.push(listener);
+    return () => {
+      const idx = this._listeners.indexOf(listener);
+      if (idx !== -1) this._listeners.splice(idx, 1);
+    };
+  }
+
   // ── Helpers ─────────────────────────────────────────────
 
   _handleError(err, context) {
     if (this._onError) {
       this._onError(err, context);
     }
+    for (const l of this._listeners) {
+      if (l.onError) l.onError(err, context);
+    }
   }
 
   _emitSync(event) {
     if (this._onSync) {
       this._onSync(event);
+    }
+    for (const l of this._listeners) {
+      if (l.onSync) l.onSync(event);
     }
   }
 }

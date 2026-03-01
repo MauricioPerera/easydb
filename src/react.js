@@ -101,6 +101,34 @@ export function useQuery(queryOrStore, opts = {}) {
 }
 
 /**
+ * React hook that tracks SyncEngine status reactively.
+ *
+ * @param {import('./sync.js').SyncEngine} syncEngine
+ * @returns {{ running: boolean, paused: boolean, lastEvent: SyncEvent|null, error: { err: Error, context: object }|null }}
+ */
+export function useSyncStatus(syncEngine) {
+  const [running, setRunning] = useState(syncEngine.running);
+  const [paused, setPaused] = useState(syncEngine.paused);
+  const [lastEvent, setLastEvent] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    return syncEngine.addListener({
+      onSync(event) {
+        setLastEvent(event);
+        setRunning(syncEngine.running);
+        setPaused(syncEngine.paused);
+      },
+      onError(err, context) {
+        setError({ err, context });
+      },
+    });
+  }, [syncEngine]);
+
+  return { running, paused, lastEvent, error };
+}
+
+/**
  * React hook that fetches a single record by key.
  *
  * @param {StoreAccessor} store - e.g., db.users
@@ -109,54 +137,6 @@ export function useQuery(queryOrStore, opts = {}) {
  * @param {boolean} [opts.watch=true] - Auto-refresh when the key changes
  * @returns {{ data: T|undefined, loading: boolean, error: Error|null, refresh: () => void }}
  */
-/**
- * React hook that tracks SyncEngine status reactively.
- *
- * @param {import('./sync.js').SyncEngine} syncEngine
- * @returns {{ running: boolean, paused: boolean, syncing: boolean, lastEvent: SyncEvent|null, error: { err: Error, context: object }|null }}
- */
-export function useSyncStatus(syncEngine) {
-  const [running, setRunning] = useState(syncEngine.running);
-  const [paused, setPaused] = useState(syncEngine.paused);
-  const [lastEvent, setLastEvent] = useState(null);
-  const [error, setError] = useState(null);
-  const originalRef = useRef({ onSync: null, onError: null });
-
-  useEffect(() => {
-    // Preserve original callbacks
-    originalRef.current.onSync = syncEngine._onSync;
-    originalRef.current.onError = syncEngine._onError;
-
-    // Intercept onSync
-    syncEngine._onSync = (event) => {
-      setLastEvent(event);
-      setRunning(syncEngine.running);
-      setPaused(syncEngine.paused);
-      if (originalRef.current.onSync) originalRef.current.onSync(event);
-    };
-
-    // Intercept onError
-    syncEngine._onError = (err, context) => {
-      setError({ err, context });
-      if (originalRef.current.onError) originalRef.current.onError(err, context);
-    };
-
-    // Poll running/paused state (lightweight — just reads booleans)
-    const timer = setInterval(() => {
-      setRunning(syncEngine.running);
-      setPaused(syncEngine.paused);
-    }, 500);
-
-    return () => {
-      clearInterval(timer);
-      syncEngine._onSync = originalRef.current.onSync;
-      syncEngine._onError = originalRef.current.onError;
-    };
-  }, [syncEngine]);
-
-  return { running, paused, lastEvent, error };
-}
-
 export function useRecord(store, key, opts = {}) {
   const watchEnabled = opts.watch !== false;
   const [data, setData] = useState(undefined);
