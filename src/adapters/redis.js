@@ -102,6 +102,7 @@ class RedisConnection {
 
   async getMany(storeName, keys) {
     this._meta(storeName);
+    if (!keys.length) return [];
     const hkey = this._hkey(storeName);
     const vals = await this._redis.hmget(hkey, ...keys.map(String));
     return vals.map(v => v != null ? JSON.parse(v) : undefined);

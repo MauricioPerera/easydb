@@ -58,10 +58,14 @@ export function queryStore(queryOrStore, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) set({ data: state.data, loading: false, error: err });
       }
     })();
 
@@ -177,10 +181,14 @@ export function recordStore(store, key, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) set({ data: state.data, loading: false, error: err });
       }
     })();
 

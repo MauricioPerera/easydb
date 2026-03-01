@@ -262,10 +262,6 @@ class SQLiteConnection {
       }
     });
 
-    const txn = this._db.transaction(async () => {
-      await fn(proxy);
-    });
-
     // better-sqlite3 transactions are sync, but our fn is async.
     // Use savepoint-based manual approach instead.
     this._db.prepare('SAVEPOINT easydb_txn').run();

@@ -169,12 +169,14 @@ class LocalStorageConnection {
   }
 
   async delete(storeName, key) {
+    this._meta(storeName);
     const data = this._readStore(storeName);
     delete data[String(key)];
     this._writeStore(storeName, data);
   }
 
   async clear(storeName) {
+    this._meta(storeName);
     this._writeStore(storeName, {});
   }
 

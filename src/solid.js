@@ -73,10 +73,14 @@ export function createQuery(queryOrStore, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) setError(err);
       }
     })();
 
@@ -156,10 +160,14 @@ export function createRecord(store, key, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) setError(err);
       }
     })();
 

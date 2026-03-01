@@ -78,10 +78,14 @@ export function createQuery(queryOrStore, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) error.set(err);
       }
     })();
 
@@ -210,10 +214,14 @@ export function createRecord(store, key, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) error.set(err);
       }
     })();
 
@@ -230,10 +238,6 @@ export function createRecord(store, key, opts = {}) {
     }
   }
 
-  // Initial fetch
-  refresh();
-  setupWatcher();
-
   // Auto-cleanup in injection context
   try {
     const destroyRef = inject(DestroyRef);
@@ -242,13 +246,18 @@ export function createRecord(store, key, opts = {}) {
     // Not in injection context
   }
 
-  // If key is a function (signal), track changes
+  // If key is a function (signal), use effect() to track changes
+  // (effect runs immediately, so it handles the initial fetch)
   if (typeof key === 'function') {
     effect(() => {
       key();
       refresh();
       setupWatcher();
     });
+  } else {
+    // Static key — fetch once and set up watcher
+    refresh();
+    setupWatcher();
   }
 
   return { data: data.asReadonly(), loading: loading.asReadonly(), error: error.asReadonly(), refresh };

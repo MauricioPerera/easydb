@@ -85,10 +85,14 @@ export function useQuery(queryOrStore, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) setError(err);
       }
     })();
 
@@ -180,10 +184,14 @@ export function useRecord(store, key, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) setError(err);
       }
     })();
 

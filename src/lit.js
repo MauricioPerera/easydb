@@ -101,10 +101,14 @@ export class EasyDBQueryController {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        this._refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          this._refresh();
+        }
+      } catch (err) {
+        if (!cancelled) { this.error = err; this.loading = false; this._host.requestUpdate(); }
       }
     })();
 
@@ -233,10 +237,14 @@ export class EasyDBRecordController {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        this._refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          this._refresh();
+        }
+      } catch (err) {
+        if (!cancelled) { this.error = err; this.loading = false; this._host.requestUpdate(); }
       }
     })();
 

@@ -25,17 +25,24 @@
   - Lit: `EasyDBSyncStatusController` → `ReactiveController` with `hostConnected`/`hostDisconnected`
   - 27 tests across all seven frameworks
 
+### Improved
+- **Proxy `has()` trap** — `'storeName' in db` now returns `true` for store names
+- **StoreAccessor caching** — `db.users === db.users` now returns `true`; accessors are cached per store name
+- **Extracted `_assertStore`** — deduplicated store validation logic from `QueryBuilder` and `StoreAccessor`
+- **Watcher error handling** — async watcher loops in all 7 framework hooks now catch errors and surface them via the `error` state instead of silently hanging
+
 ### Fixed
 - **Adapter type declarations** — 5 adapter `.d.ts` files incorrectly re-exported from main module; now properly declare types from their own files
 - **Lifecycle notifications** — `start()`/`stop()`/`pause()`/`resume()` now notify listeners via `onStatusChange`, fixing stale `running`/`paused` state in hooks
 - **React/Preact stale closure** — watcher `refresh()` now reads from `queryRef.current` instead of closure variable
 - **`count()` fast path** — now correctly falls back to slow path when `skip()` or `limit()` are applied
 - **Unsafe listener iteration** — `_emitSync`/`_handleError` now iterate a copy of the listeners array, preventing skipped callbacks when a listener unsubscribes during dispatch
-- **Angular double-fetch** — `createQuery()` with function input no longer calls `refresh()` twice on initialization
+- **Angular double-fetch** — `createQuery()` and `createRecord()` with function input no longer call `refresh()` twice on initialization
 - **`last-write-wins` timestamps** — uses `?? 0` instead of `|| 0` to correctly handle falsy timestamp values like `0`
+- **CHANGELOG v1.1.0** — corrected stale API names for Angular, Solid.js, Preact, and Lit
 
 ### Testing
-- 730 tests total (up from 662)
+- 739 tests total (up from 662)
 
 ## v1.1.0 — 2026-02-28
 
@@ -47,10 +54,10 @@
 - **TursoAdapter** — Turso/libSQL for edge-replicated SQLite
 
 ### New Framework Integrations
-- **Angular** — `injectEasyDB()` with Angular 16+ signals
-- **Solid.js** — `createEasyDB()` with Solid signals
-- **Preact** — `useEasyDB()` with Preact hooks
-- **Lit** — `EasyDBController` ReactiveController for web components
+- **Angular** — `createQuery()` / `createRecord()` with Angular 16+ signals
+- **Solid.js** — `createQuery()` / `createRecord()` with Solid signals
+- **Preact** — `useQuery()` / `useRecord()` with Preact hooks
+- **Lit** — `EasyDBQueryController` / `EasyDBRecordController` ReactiveControllers for web components
 
 ### Testing
 - Adapter conformance test suite covering Memory, localStorage, SQLite
