@@ -4,16 +4,16 @@ EasyDB supports multiple storage backends via its adapter architecture. All adap
 
 ## Quick Comparison
 
-| | IDBAdapter | MemoryAdapter | D1Adapter | KVAdapter | LocalStorageAdapter | SQLiteAdapter | PostgresAdapter | RedisAdapter | TursoAdapter |
-|---|---|---|---|---|---|---|---|---|---|
-| **Runtime** | Browser | Anywhere | CF Workers | CF Workers | Browser | Node.js | Node.js | Node.js | Node.js / Edge |
-| **Persistence** | Persistent | In-memory | Persistent | Persistent | Persistent | Persistent | Persistent | Persistent | Persistent |
-| **Capacity** | ~50MB+ | RAM | 10GB | Unlimited | ~5MB | Unlimited | Unlimited | RAM/Disk | Unlimited |
-| **Best for** | Browser apps | Testing, SSR | Edge CRUD | Config, sessions | Simple browser | Server apps | Production | Caching, queues | Edge databases |
-| **Range queries** | Native | JS sort | SQL WHERE | JS-side | JS-side | SQL WHERE | SQL WHERE | Sorted sets | SQL WHERE |
-| **Transactions** | Native IDB | Snapshot | Snapshot | Best-effort | Snapshot | SAVEPOINT | BEGIN/COMMIT | MULTI/EXEC | Snapshot |
-| **Watch** | Yes + cross-tab | Yes (local) | Yes (local) | Yes (local) | Yes (local) | Yes (local) | Yes (local) | Yes (local) | Yes (local) |
-| **Indexes** | Native | Simulated | SQL indexes | Prefix-based | Simulated | SQL indexes | SQL indexes | Sorted sets | SQL indexes |
+| | IDBAdapter | MemoryAdapter | D1Adapter | KVAdapter | LocalStorageAdapter | SQLiteAdapter | PostgresAdapter | MySQLAdapter | RedisAdapter | TursoAdapter |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **Runtime** | Browser | Anywhere | CF Workers | CF Workers | Browser | Node.js | Node.js | Node.js | Node.js | Node.js / Edge |
+| **Persistence** | Persistent | In-memory | Persistent | Persistent | Persistent | Persistent | Persistent | Persistent | Persistent | Persistent |
+| **Capacity** | ~50MB+ | RAM | 10GB | Unlimited | ~5MB | Unlimited | Unlimited | Unlimited | RAM/Disk | Unlimited |
+| **Best for** | Browser apps | Testing, SSR | Edge CRUD | Config, sessions | Simple browser | Server apps | Production | Production | Caching, queues | Edge databases |
+| **Range queries** | Native | JS sort | SQL WHERE | JS-side | JS-side | SQL WHERE | SQL WHERE | SQL WHERE | Sorted sets | SQL WHERE |
+| **Transactions** | Native IDB | Snapshot | Snapshot | Best-effort | Snapshot | SAVEPOINT | BEGIN/COMMIT | BEGIN/COMMIT | MULTI/EXEC | Snapshot |
+| **Watch** | Yes + cross-tab | Yes (local) | Yes (local) | Yes (local) | Yes (local) | Yes (local) | Yes (local) | Yes (local) | Yes (local) | Yes (local) |
+| **Indexes** | Native | Simulated | SQL indexes | Prefix-based | Simulated | SQL indexes | SQL indexes | SQL indexes | Sorted sets | SQL indexes |
 
 ## IDBAdapter (Browser)
 
@@ -239,6 +239,45 @@ const db = await EasyDB.open('app', {
 
 ---
 
+## MySQLAdapter (Node.js)
+
+Connects to MySQL or MariaDB via `mysql2/promise`. A single adapter covers both databases since they are wire-compatible.
+
+```javascript
+import { EasyDB } from '@rckflr/easydb';
+import { MySQLAdapter } from '@rckflr/easydb/adapters/mysql';
+import mysql from 'mysql2/promise';
+
+const pool = mysql.createPool({
+  host: 'localhost',
+  user: 'root',
+  database: 'myapp',
+});
+const db = await EasyDB.open('app', {
+  adapter: new MySQLAdapter(pool),
+  schema(s) {
+    s.createStore('users', { key: 'id', indexes: ['email'] });
+  }
+});
+```
+
+**Strengths:**
+- Works with both MySQL 8+ and MariaDB 10.5+
+- True ACID transactions via BEGIN/COMMIT/ROLLBACK with dedicated connection
+- SQL-native range queries and indexes
+- Works with connection pools, managed databases (RDS, PlanetScale, Aiven)
+- LONGTEXT `_value` column supports JSON payloads up to 4GB
+
+**Limitations:**
+- Requires running MySQL or MariaDB server
+- Text primary keys use VARCHAR(255) (MySQL can't index TEXT directly)
+- Higher latency than in-process databases
+- No browser support
+
+**Best for:** Production APIs, apps already using MySQL or MariaDB, LAMP-stack migrations, multi-tenant SaaS backends.
+
+---
+
 ## RedisAdapter (Node.js)
 
 Connects to Redis via `ioredis` or `@upstash/redis`.
@@ -323,6 +362,7 @@ Is it a Cloudflare Worker?
 
 Is it Node.js?
   ├─ Already have PostgreSQL? → PostgresAdapter
+  ├─ Already have MySQL/MariaDB? → MySQLAdapter
   ├─ Need Redis for caching/sessions? → RedisAdapter
   ├─ Want embedded SQLite (no server)? → SQLiteAdapter
   └─ Need edge-replicated SQLite? → TursoAdapter

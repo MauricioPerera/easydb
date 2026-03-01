@@ -49,11 +49,12 @@ export function useQuery(queryOrStore, opts = {}) {
   function refresh() {
     versionRef.current++;
     const ver = versionRef.current;
+    const q = queryRef.current;
 
     setLoading(true);
     setError(null);
 
-    query.toArray()
+    q.toArray()
       .then(results => {
         if (versionRef.current === ver) {
           setData(results);
@@ -79,10 +80,14 @@ export function useQuery(queryOrStore, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) setError(err);
       }
     })();
 
@@ -93,6 +98,36 @@ export function useQuery(queryOrStore, opts = {}) {
   }, [watchEnabled, store]);
 
   return { data, loading, error, refresh };
+}
+
+/**
+ * Preact hook that tracks SyncEngine status reactively.
+ *
+ * @param {import('./sync.js').SyncEngine} syncEngine
+ * @returns {{ running: boolean, paused: boolean, lastEvent: SyncEvent|null, error: { err: Error, context: object }|null }}
+ */
+export function useSyncStatus(syncEngine) {
+  const [running, setRunning] = useState(syncEngine.running);
+  const [paused, setPaused] = useState(syncEngine.paused);
+  const [lastEvent, setLastEvent] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    return syncEngine.addListener({
+      onSync(event) {
+        setLastEvent(event);
+      },
+      onError(err, context) {
+        setError({ err, context });
+      },
+      onStatusChange({ running, paused }) {
+        setRunning(running);
+        setPaused(paused);
+      },
+    });
+  }, [syncEngine]);
+
+  return { running, paused, lastEvent, error };
 }
 
 /**
@@ -144,10 +179,14 @@ export function useRecord(store, key, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) setError(err);
       }
     })();
 

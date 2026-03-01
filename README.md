@@ -1,6 +1,6 @@
 # EasyDB
 
-> Multi-backend storage with `async/await`, async iterables, and modern JavaScript — IndexedDB, SQLite, PostgreSQL, Redis, Turso, D1, KV, localStorage.
+> Multi-backend storage with `async/await`, async iterables, and modern JavaScript — IndexedDB, SQLite, PostgreSQL, MySQL/MariaDB, Redis, Turso, D1, KV, localStorage.
 
 Inspired by Cloudflare's ["We deserve a better streams API"](https://blog.cloudflare.com/a-better-web-streams-api/) philosophy — applying pull semantics, zero ceremony, and native fast paths to client-side and edge storage.
 
@@ -12,11 +12,11 @@ IndexedDB was designed in 2011 with DOM events. Reading a single record requires
 const user = await db.users.get(42);
 ```
 
-And the same API works across **browsers** (IndexedDB), **Node.js** (SQLite, PostgreSQL, Redis), **edge** (D1, KV, Turso), and **tests** (Memory) — swap the adapter, keep your code.
+And the same API works across **browsers** (IndexedDB), **Node.js** (SQLite, PostgreSQL, MySQL/MariaDB, Redis), **edge** (D1, KV, Turso), and **tests** (Memory) — swap the adapter, keep your code.
 
 ## Features
 
-- **9 storage adapters** — IndexedDB, Memory, SQLite, PostgreSQL, Redis, Turso, D1, KV, localStorage
+- **10 storage adapters** — IndexedDB, Memory, SQLite, PostgreSQL, MySQL/MariaDB, Redis, Turso, D1, KV, localStorage
 - **7 framework integrations** — React, Vue, Svelte, Angular, Solid.js, Preact, Lit
 - **~400 LOC core, zero dependencies** — thin ergonomic wrapper, not a framework
 - **Proxy-based store access** — `db.users`, `db.orders` without registration
@@ -109,6 +109,21 @@ const db = await EasyDB.open('app', {
 });
 ```
 
+### Node.js (MySQL / MariaDB)
+
+```javascript
+import { MySQLAdapter } from '@rckflr/easydb/adapters/mysql';
+import mysql from 'mysql2/promise';
+
+const pool = mysql.createPool({ host: 'localhost', user: 'root', database: 'app' });
+const db = await EasyDB.open('app', {
+  adapter: new MySQLAdapter(pool),
+  schema(s) {
+    s.createStore('users', { key: 'id', indexes: ['role'] });
+  }
+});
+```
+
 ### Node.js (Redis)
 
 ```javascript
@@ -179,7 +194,7 @@ EasyDB provides reactive bindings for 7 UI frameworks. All integrations auto-ref
 ### React
 
 ```javascript
-import { useQuery, useRecord } from '@rckflr/easydb/react';
+import { useQuery, useRecord, useSyncStatus } from '@rckflr/easydb/react';
 
 function UserList({ db }) {
   const { data, loading, error } = useQuery(db.users);
@@ -191,12 +206,19 @@ function UserProfile({ db, userId }) {
   const { data: user } = useRecord(db.users, userId);
   return <h1>{user?.name}</h1>;
 }
+
+// Track sync status reactively:
+function SyncIndicator({ syncEngine }) {
+  const { running, paused, lastEvent, error } = useSyncStatus(syncEngine);
+  if (error) return <p>Sync error: {error.err.message}</p>;
+  return <p>Sync: {running ? (paused ? 'paused' : 'active') : 'stopped'}</p>;
+}
 ```
 
 ### Vue 3
 
 ```javascript
-import { useQuery, useRecord } from '@rckflr/easydb/vue';
+import { useQuery, useRecord, useSyncStatus } from '@rckflr/easydb/vue';
 
 // In <script setup>:
 const { data, loading, error } = useQuery(db.users);
@@ -205,54 +227,68 @@ const admins = useQuery(db.users.where('role', 'admin'));
 // Reactive key (re-fetches when ref changes):
 const userId = ref(1);
 const { data: user } = useRecord(db.users, userId);
+
+// Track sync status (reactive refs, auto-cleanup via onUnmounted):
+const { running, paused, lastEvent, error } = useSyncStatus(syncEngine);
 ```
 
 ### Svelte
 
 ```javascript
-import { queryStore, recordStore } from '@rckflr/easydb/svelte';
+import { queryStore, recordStore, syncStatusStore } from '@rckflr/easydb/svelte';
 
 const users = queryStore(db.users);
 // {#if $users.loading} ... {:else} {#each $users.data as user} ... {/each} {/if}
+
+// Track sync status:
+const status = syncStatusStore(syncEngine);
+// {#if $status.running}Syncing...{/if}
+// {#if $status.error}Error: {$status.error.err.message}{/if}
 ```
 
 ### Angular 16+
 
 ```typescript
-import { createQuery, createRecord } from '@rckflr/easydb/angular';
+import { createQuery, createRecord, createSyncStatus } from '@rckflr/easydb/angular';
 
 @Component({ template: `@for (user of users.data(); track user.id) { ... }` })
 class UserList {
   users = createQuery(db.users);          // Signal-based
   admins = createQuery(() => db.users.where('role', 'admin'));  // Reactive
+  sync = createSyncStatus(syncEngine);    // sync.running(), sync.lastEvent()
 }
 ```
 
 ### Solid.js
 
 ```javascript
-import { createQuery, createRecord } from '@rckflr/easydb/solid';
+import { createQuery, createRecord, createSyncStatus } from '@rckflr/easydb/solid';
 
 function UserList() {
   const users = createQuery(db.users);
-  return <For each={users.data()}>{u => <p>{u.name}</p>}</For>;
+  const sync = createSyncStatus(syncEngine);
+  return <>
+    <Show when={sync.running()}>Syncing...</Show>
+    <For each={users.data()}>{u => <p>{u.name}</p>}</For>
+  </>;
 }
 ```
 
 ### Preact
 
 ```javascript
-import { useQuery, useRecord } from '@rckflr/easydb/preact';
-// Same API as React — drop-in replacement
+import { useQuery, useRecord, useSyncStatus } from '@rckflr/easydb/preact';
+// Same API as React — drop-in replacement (includes useSyncStatus)
 ```
 
 ### Lit
 
 ```javascript
-import { EasyDBQueryController, EasyDBRecordController } from '@rckflr/easydb/lit';
+import { EasyDBQueryController, EasyDBSyncStatusController } from '@rckflr/easydb/lit';
 
 class UserList extends LitElement {
   _users = new EasyDBQueryController(this, db.users);
+  _sync = new EasyDBSyncStatusController(this, syncEngine);
   render() {
     const { data, loading } = this._users;
     return loading ? html`<p>Loading...</p>` : html`<ul>${data.map(u => html`<li>${u.name}</li>`)}</ul>`;
@@ -345,6 +381,20 @@ await sync.syncAll();        // reconcile all stores
 await sync.syncStore('users'); // single store
 
 sync.stop();                 // stop and clean up
+```
+
+### Programmatic sync monitoring
+
+Use `addListener()` to track sync events and lifecycle changes outside of framework hooks:
+
+```javascript
+const unsub = sync.addListener({
+  onSync(event) { console.log('synced:', event.store, event.type); },
+  onError(err, ctx) { console.error('sync error:', ctx.store, err); },
+  onStatusChange({ running, paused }) { console.log({ running, paused }); },
+});
+
+// Call unsub() when done. Safe for multiple concurrent listeners.
 ```
 
 ### Custom conflict resolution
@@ -452,6 +502,7 @@ EasyDB uses a pluggable adapter architecture. All adapters implement the same in
 | `MemoryAdapter` | `@rckflr/easydb` | Anywhere | In-memory |
 | `SQLiteAdapter` | `@rckflr/easydb/adapters/sqlite` | Node.js | File / in-memory |
 | `PostgresAdapter` | `@rckflr/easydb/adapters/postgres` | Node.js | PostgreSQL |
+| `MySQLAdapter` | `@rckflr/easydb/adapters/mysql` | Node.js | MySQL / MariaDB |
 | `RedisAdapter` | `@rckflr/easydb/adapters/redis` | Node.js | Redis |
 | `TursoAdapter` | `@rckflr/easydb/adapters/turso` | Node.js / Edge | Turso / libSQL |
 | `D1Adapter` | `@rckflr/easydb` | Cloudflare Workers | D1 (SQLite) |
@@ -495,8 +546,8 @@ rollback)   + range          BroadcastChannel)
         |
    Adapter Interface
         |
-   ┌──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┐
-  IDB  Memory  SQLite  PG   Redis Turso  D1    KV  localStorage
+   ┌──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┐
+  IDB  Memory  SQLite  PG   MySQL Redis Turso  D1    KV  localStorage
 ```
 
 ## Bundle Size
@@ -532,7 +583,7 @@ const admins = await db.users.where('role', 'admin').toArray();  // MySchema['us
 - **Transactions auto-commit** when there are no pending IDB requests in the event loop. Avoid `await fetch()` inside a transaction.
 - **No compound indexes** — use `.filter()` for JS-side compound predicates.
 
-### SQL adapters (D1, SQLite, PostgreSQL, Turso)
+### SQL adapters (D1, SQLite, PostgreSQL, MySQL/MariaDB, Turso)
 - **Transactions are emulated** with SAVEPOINT/BEGIN/snapshot depending on adapter.
 - `.filter()` runs JS-side after the SQL query.
 
@@ -548,7 +599,7 @@ const admins = await db.users.where('role', 'admin').toArray();  // MySchema['us
 | Feature | EasyDB | Dexie.js | idb | SQLite WASM |
 |---------|--------|----------|-----|-------------|
 | Size | ~400 LOC core | ~15k LOC | ~2KB | ~800KB WASM |
-| Multi-backend | 9 adapters | IndexedDB only | IndexedDB only | SQLite only |
+| Multi-backend | 10 adapters | IndexedDB only | IndexedDB only | SQLite only |
 | Framework bindings | 7 frameworks | React | No | No |
 | Async iterables | Pull cursor | Callback-based | No | No |
 | Range queries | Native | Native | Manual | SQL |
@@ -571,7 +622,7 @@ const admins = await db.users.where('role', 'admin').toArray();  // MySchema['us
 git clone https://github.com/MauricioPerera/easydb.git
 cd easydb
 npm install
-npm test            # Run all 696 tests
+npm test            # Run all 730 tests
 npm run build       # Generate CDN bundles (dist/)
 npm run bench       # Run benchmarks
 npm run metrics     # Show LOC and gzip sizes
@@ -583,7 +634,7 @@ This project emerged from a discussion about Cloudflare's blog post ["We deserve
 
 We asked: **what other JS APIs deserve the same treatment?** IndexedDB was the obvious candidate — an API from 2011 that predates `async/await`, async iterables, and Proxy, all of which are now standard JavaScript.
 
-EasyDB started as a proof of concept and evolved into a multi-backend storage library with 9 adapters and 7 framework integrations — demonstrating that modern JavaScript primitives can provide a clean, unified storage API across environments.
+EasyDB started as a proof of concept and evolved into a multi-backend storage library with 10 adapters and 7 framework integrations — demonstrating that modern JavaScript primitives can provide a clean, unified storage API across environments.
 
 ## License
 

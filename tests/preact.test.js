@@ -19,7 +19,8 @@ vi.mock('preact/hooks', () => ({
 }));
 
 import { EasyDB, MemoryAdapter } from '../src/easydb.js';
-import { useQuery, useRecord } from '../src/preact.js';
+import { useQuery, useRecord, useSyncStatus } from '../src/preact.js';
+import { SyncEngine } from '../src/sync.js';
 
 const tick = (ms = 20) => new Promise(r => setTimeout(r, ms));
 
@@ -154,6 +155,51 @@ describe('Preact integration', () => {
       result.refresh();
       await tick();
       expect(result.data.name).toBe('Bob Updated');
+    });
+  });
+
+  describe('useSyncStatus()', () => {
+    let db2, sync;
+
+    beforeEach(async () => {
+      db2 = await EasyDB.open('preact-sync-target-' + Math.random(), {
+        adapter: new MemoryAdapter(),
+        schema(b) { b.createStore('users', { key: 'id' }); },
+      });
+      sync = new SyncEngine(db, db2, {
+        stores: ['users'],
+        direction: 'push',
+      });
+    });
+
+    it('returns initial status', () => {
+      const result = renderHook(useSyncStatus, sync);
+      expect(result.data).toBe(false);   // running
+      expect(result.loading).toBe(false); // paused
+    });
+
+    it('tracks sync events via lastEvent', async () => {
+      sync.start();
+      const s = renderHook(useSyncStatus, sync);
+
+      await db.users.put({ id: 10, name: 'New', role: 'test' });
+      await tick(50);
+
+      // lastEvent at state index 2
+      expect(_states[2]).not.toBeNull();
+      expect(_states[2].store).toBe('users');
+
+      sync.stop();
+    });
+
+    it('tracks errors', () => {
+      const s = renderHook(useSyncStatus, sync);
+
+      sync._handleError(new Error('preact sync err'), { op: 'push', store: 'users' });
+
+      // error at state index 3
+      expect(_states[3]).not.toBeNull();
+      expect(_states[3].err.message).toBe('preact sync err');
     });
   });
 });

@@ -58,10 +58,14 @@ export function queryStore(queryOrStore, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) set({ data: state.data, loading: false, error: err });
       }
     })();
 
@@ -93,15 +97,6 @@ export function queryStore(queryOrStore, opts = {}) {
 }
 
 /**
- * Creates a Svelte readable store for a single record by key.
- *
- * @param {StoreAccessor} store
- * @param {any} key
- * @param {object} [opts]
- * @param {boolean} [opts.watch=true] - Auto-refresh when the record changes
- * @returns {{ subscribe: Function, refresh: Function }}
- */
-/**
  * Creates a Svelte readable store that tracks SyncEngine status.
  *
  * @param {import('./sync.js').SyncEngine} syncEngine
@@ -110,26 +105,12 @@ export function queryStore(queryOrStore, opts = {}) {
 export function syncStatusStore(syncEngine) {
   let state = { running: syncEngine.running, paused: syncEngine.paused, lastEvent: null, error: null };
   const subscribers = new Set();
+  let unsubscribe = null;
 
   function set(newState) {
     state = newState;
     for (const cb of subscribers) cb(state);
   }
-
-  const originalOnSync = syncEngine._onSync;
-  const originalOnError = syncEngine._onError;
-
-  syncEngine._onSync = (event) => {
-    set({ ...state, running: syncEngine.running, paused: syncEngine.paused, lastEvent: event });
-    if (originalOnSync) originalOnSync(event);
-  };
-
-  syncEngine._onError = (err, context) => {
-    set({ ...state, error: { err, context } });
-    if (originalOnError) originalOnError(err, context);
-  };
-
-  let timer = null;
 
   return {
     subscribe(cb) {
@@ -137,26 +118,39 @@ export function syncStatusStore(syncEngine) {
       cb(state);
 
       if (subscribers.size === 1) {
-        timer = setInterval(() => {
-          if (state.running !== syncEngine.running || state.paused !== syncEngine.paused) {
-            set({ ...state, running: syncEngine.running, paused: syncEngine.paused });
-          }
-        }, 500);
+        unsubscribe = syncEngine.addListener({
+          onSync(event) {
+            set({ ...state, lastEvent: event });
+          },
+          onError(err, context) {
+            set({ ...state, error: { err, context } });
+          },
+          onStatusChange(status) {
+            set({ ...state, running: status.running, paused: status.paused });
+          },
+        });
       }
 
       return () => {
         subscribers.delete(cb);
-        if (subscribers.size === 0 && timer) {
-          clearInterval(timer);
-          timer = null;
-          syncEngine._onSync = originalOnSync;
-          syncEngine._onError = originalOnError;
+        if (subscribers.size === 0 && unsubscribe) {
+          unsubscribe();
+          unsubscribe = null;
         }
       };
     },
   };
 }
 
+/**
+ * Creates a Svelte readable store for a single record by key.
+ *
+ * @param {StoreAccessor} store
+ * @param {any} key
+ * @param {object} [opts]
+ * @param {boolean} [opts.watch=true] - Auto-refresh when the record changes
+ * @returns {{ subscribe: Function, refresh: Function }}
+ */
 export function recordStore(store, key, opts = {}) {
   const watchEnabled = opts.watch !== false;
 
@@ -187,10 +181,14 @@ export function recordStore(store, key, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) set({ data: state.data, loading: false, error: err });
       }
     })();
 

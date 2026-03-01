@@ -1,34 +1,34 @@
 import type { Readable } from 'svelte/store';
 
-interface QueryState<T> {
+export interface QueryState<T> {
   data: T[];
   loading: boolean;
   error: Error | null;
 }
 
-interface RecordState<T> {
+export interface RecordState<T> {
   data: T | undefined;
   loading: boolean;
   error: Error | null;
 }
 
-interface QueryStoreResult<T> extends Readable<QueryState<T>> {
+export interface QueryStoreResult<T> extends Readable<QueryState<T>> {
   refresh: () => void;
 }
 
-interface RecordStoreResult<T> extends Readable<RecordState<T>> {
+export interface RecordStoreResult<T> extends Readable<RecordState<T>> {
   refresh: () => void;
 }
 
-interface QueryStoreOptions {
+export interface QueryStoreOptions {
   watch?: boolean;
 }
 
-interface QueryLike<T = any> {
+export interface QueryLike<T = any> {
   toArray(): Promise<T[]>;
 }
 
-interface StoreLike<T = any> {
+export interface StoreLike<T = any> {
   all(): QueryLike<T>;
   get(key: any): Promise<T | undefined>;
   put(value: T): Promise<any>;
@@ -46,7 +46,7 @@ export declare function recordStore<T = any>(
   opts?: QueryStoreOptions,
 ): RecordStoreResult<T>;
 
-interface SyncStatusState {
+export interface SyncStatusState {
   running: boolean;
   paused: boolean;
   lastEvent: import('./sync.js').SyncEvent | null;

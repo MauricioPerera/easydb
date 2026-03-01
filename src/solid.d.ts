@@ -12,29 +12,29 @@
 
 import type { Accessor } from 'solid-js';
 
-interface QueryResult<T> {
+export interface QueryResult<T> {
   data: Accessor<T[]>;
   loading: Accessor<boolean>;
   error: Accessor<Error | null>;
   refresh: () => void;
 }
 
-interface RecordResult<T> {
+export interface RecordResult<T> {
   data: Accessor<T | undefined>;
   loading: Accessor<boolean>;
   error: Accessor<Error | null>;
   refresh: () => void;
 }
 
-interface QueryOptions {
+export interface QueryOptions {
   watch?: boolean;
 }
 
-interface QueryLike<T = any> {
+export interface QueryLike<T = any> {
   toArray(): Promise<T[]>;
 }
 
-interface StoreLike<T = any> {
+export interface StoreLike<T = any> {
   all(): QueryLike<T>;
   get(key: any): Promise<T | undefined>;
   put(value: T): Promise<any>;
@@ -51,3 +51,14 @@ export declare function createRecord<T = any>(
   key: any | (() => any),
   opts?: QueryOptions,
 ): RecordResult<T>;
+
+export interface SyncStatusResult {
+  running: Accessor<boolean>;
+  paused: Accessor<boolean>;
+  lastEvent: Accessor<import('./sync.js').SyncEvent | null>;
+  error: Accessor<{ err: Error; context: import('./sync.js').SyncErrorContext } | null>;
+}
+
+export declare function createSyncStatus(
+  syncEngine: import('./sync.js').SyncEngine,
+): SyncStatusResult;

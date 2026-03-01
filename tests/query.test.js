@@ -186,6 +186,21 @@ describe('QueryBuilder — range queries', () => {
     expect(count).toBe(3);
   });
 
+  it('count respects limit()', async () => {
+    const count = await db.users.all().limit(3).count();
+    expect(count).toBe(3);
+  });
+
+  it('count respects skip()', async () => {
+    const count = await db.users.all().skip(7).count();
+    expect(count).toBe(3);
+  });
+
+  it('count respects skip + limit', async () => {
+    const count = await db.users.all().skip(2).limit(4).count();
+    expect(count).toBe(4);
+  });
+
   it('range + first', async () => {
     const oldest = await db.users.where('age').gt(40).first();
     expect(oldest.age).toBe(41);

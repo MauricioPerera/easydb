@@ -206,7 +206,7 @@ describe('Svelte integration', () => {
       let state;
       const unsub = store.subscribe(s => { state = s; });
 
-      sync._onError(new Error('svelte sync err'), { op: 'push', store: 'users' });
+      sync._handleError(new Error('svelte sync err'), { op: 'push', store: 'users' });
 
       expect(state.error).not.toBeNull();
       expect(state.error.err.message).toBe('svelte sync err');
@@ -217,9 +217,8 @@ describe('Svelte integration', () => {
       const store = syncStatusStore(sync);
       const unsub = store.subscribe(() => {});
       unsub();
-      // After unsub, original callbacks should be restored
-      expect(sync._onSync).toBeNull();
-      expect(sync._onError).toBeNull();
+      // After unsub, listener should be removed
+      expect(sync._listeners).toHaveLength(0);
     });
   });
 });

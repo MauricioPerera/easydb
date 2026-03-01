@@ -28,11 +28,11 @@ export interface UseQueryOptions {
   watch?: boolean;
 }
 
-interface QueryLike<T = any> {
+export interface QueryLike<T = any> {
   toArray(): Promise<T[]>;
 }
 
-interface StoreLike<T = any> {
+export interface StoreLike<T = any> {
   all(): QueryLike<T>;
   get(key: any): Promise<T | undefined>;
   put(value: T): Promise<any>;
@@ -49,3 +49,14 @@ export declare function useRecord<T = any>(
   key: any,
   opts?: UseQueryOptions,
 ): UseRecordResult<T>;
+
+export interface UseSyncStatusResult {
+  running: boolean;
+  paused: boolean;
+  lastEvent: import('./sync.js').SyncEvent | null;
+  error: { err: Error; context: import('./sync.js').SyncErrorContext } | null;
+}
+
+export declare function useSyncStatus(
+  syncEngine: import('./sync.js').SyncEngine,
+): UseSyncStatusResult;

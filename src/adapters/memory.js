@@ -65,7 +65,7 @@ class MemoryConnection {
 
   async count(storeName, opts = {}) {
     const store = this._getStore(storeName);
-    if (!opts.range && !opts.index) return store.data.size;
+    if (!opts.range) return store.data.size;
 
     let count = 0;
     for (const [key, val] of store.data) {

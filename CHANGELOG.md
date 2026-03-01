@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.3.0 — 2026-03-01
+
+### New Storage Adapter
+- **MySQLAdapter** — MySQL / MariaDB via `mysql2/promise`
+  - Single adapter covers both MySQL 8+ and MariaDB 10.5+ (wire-compatible)
+  - True ACID transactions via BEGIN/COMMIT/ROLLBACK with dedicated pool connection
+  - SQL-native range queries and indexes
+  - LONGTEXT `_value` column for JSON payloads up to 4GB
+  - VARCHAR(255) primary keys (MySQL can't index TEXT directly)
+  - INT AUTO_INCREMENT for autoIncrement stores
+  - Index creation with try/catch on errno 1061 (MySQL 8 doesn't support IF NOT EXISTS on indexes)
+  - ON DUPLICATE KEY UPDATE for upserts
+  - 20 unit tests with mock MySQL client, 48 integration tests (skipped when MySQL unavailable)
+
+### Changed
+- Docker Compose now includes MySQL 8.4 (port 3306) and MariaDB 11.4 (port 3307) services
+- Updated README, ADAPTERS guide, and CONTRIBUTING docs for 10 adapters
+- Added `mysql2` as optional peer dependency and dev dependency
+- Added `./adapters/mysql` to package.json exports map
+
+### Testing
+- 804 tests total (up from 784)
+
 ## v1.2.0 — 2026-02-28
 
 ### New Features
@@ -12,10 +35,45 @@
   - Custom `onConflict` callback for manual merge logic
   - Pause/resume with event queuing
   - `onSync` and `onError` callbacks for monitoring
-  - 34 tests covering push, pull, bidirectional, conflicts, lifecycle, and edge cases
+  - `addListener()` public API for multi-consumer sync status tracking with `onSync`, `onError`, and `onStatusChange` callbacks
+  - Order-insensitive deep equality for conflict detection (replaces fragile `JSON.stringify`)
+  - 38 tests covering push, pull, bidirectional, conflicts, lifecycle, listeners, and edge cases
+- **Sync status hooks** — reactive sync monitoring for all 7 frameworks
+  - React: `useSyncStatus(syncEngine)` → `{ running, paused, lastEvent, error }`
+  - Vue: `useSyncStatus(syncEngine)` → reactive `Ref<>` values with `onUnmounted` cleanup
+  - Svelte: `syncStatusStore(syncEngine)` → Svelte store contract (`$status.running`, etc.)
+  - Angular: `createSyncStatus(syncEngine)` → readonly `Signal<>` values with `DestroyRef` cleanup
+  - Solid.js: `createSyncStatus(syncEngine)` → `Accessor<>` values with `onCleanup`
+  - Preact: `useSyncStatus(syncEngine)` → same API as React
+  - Lit: `EasyDBSyncStatusController` → `ReactiveController` with `hostConnected`/`hostDisconnected`
+  - 27 tests across all seven frameworks
+
+### Improved
+- **Proxy `has()` trap** — `'storeName' in db` now returns `true` for store names
+- **StoreAccessor caching** — `db.users === db.users` now returns `true`; accessors are cached per store name
+- **Extracted `_assertStore`** — deduplicated store validation logic from `QueryBuilder` and `StoreAccessor`
+- **Watcher error handling** — async watcher loops in all 7 framework hooks now catch errors and surface them via the `error` state instead of silently hanging
+
+### Fixed
+- **Adapter type declarations** — 5 adapter `.d.ts` files incorrectly re-exported from main module; now properly declare types from their own files
+- **Lifecycle notifications** — `start()`/`stop()`/`pause()`/`resume()` now notify listeners via `onStatusChange`, fixing stale `running`/`paused` state in hooks
+- **React/Preact stale closure** — watcher `refresh()` now reads from `queryRef.current` instead of closure variable
+- **`count()` fast path** — now correctly falls back to slow path when `skip()` or `limit()` are applied
+- **Unsafe listener iteration** — `_emitSync`/`_handleError` now iterate a copy of the listeners array, preventing skipped callbacks when a listener unsubscribes during dispatch
+- **Angular double-fetch** — `createQuery()` and `createRecord()` with function input no longer call `refresh()` twice on initialization
+- **`last-write-wins` timestamps** — uses `?? 0` instead of `|| 0` to correctly handle falsy timestamp values like `0`
+- **CHANGELOG v1.1.0** — corrected stale API names for Angular, Solid.js, Preact, and Lit
+- **IDB `onblocked` handler** — `open()` now rejects with `VersionError` instead of hanging silently when another tab holds an old connection
+- **D1 rollback error preservation** — if rollback itself fails, the original error is now thrown with `rollbackError` attached instead of being swallowed
+- **SQLite re-entrant transactions** — unique savepoint names (`easydb_txn_N`) replace the fixed `easydb_txn` name that broke nested calls
+- **Postgres `putMany` nesting** — replaced raw `BEGIN`/`COMMIT` with `SAVEPOINT`/`RELEASE` so `putMany()` nests safely inside `transaction()`
+- **Redis atomic auto-increment** — uses Redis `INCR` instead of read-modify-write on a JSON blob, fixing race conditions across multiple instances
+- **Redis/KV schema upgrade** — upgrading schema version no longer drops stores not re-declared in the new schema; existing stores are merged in
+- **Redis/KV `count()` fast-path** — removed unnecessary `!opts.index` guard (same fix previously applied to Memory adapter)
+- **Framework `.d.ts` exports** — all interfaces in Vue, Svelte, Angular, Solid.js, Preact, and Lit type declarations are now exported, fixing broken TypeScript inference for consumers
 
 ### Testing
-- 696 tests total (up from 662)
+- 739 tests total (up from 662)
 
 ## v1.1.0 — 2026-02-28
 
@@ -27,10 +85,10 @@
 - **TursoAdapter** — Turso/libSQL for edge-replicated SQLite
 
 ### New Framework Integrations
-- **Angular** — `injectEasyDB()` with Angular 16+ signals
-- **Solid.js** — `createEasyDB()` with Solid signals
-- **Preact** — `useEasyDB()` with Preact hooks
-- **Lit** — `EasyDBController` ReactiveController for web components
+- **Angular** — `createQuery()` / `createRecord()` with Angular 16+ signals
+- **Solid.js** — `createQuery()` / `createRecord()` with Solid signals
+- **Preact** — `useQuery()` / `useRecord()` with Preact hooks
+- **Lit** — `EasyDBQueryController` / `EasyDBRecordController` ReactiveControllers for web components
 
 ### Testing
 - Adapter conformance test suite covering Memory, localStorage, SQLite

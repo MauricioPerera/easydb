@@ -1,28 +1,28 @@
 import type { Ref } from 'vue';
 
-interface QueryResult<T> {
+export interface QueryResult<T> {
   data: Ref<T[]>;
   loading: Ref<boolean>;
   error: Ref<Error | null>;
   refresh: () => void;
 }
 
-interface RecordResult<T> {
+export interface RecordResult<T> {
   data: Ref<T | undefined>;
   loading: Ref<boolean>;
   error: Ref<Error | null>;
   refresh: () => void;
 }
 
-interface QueryOptions {
+export interface QueryOptions {
   watch?: boolean;
 }
 
-interface QueryLike<T = any> {
+export interface QueryLike<T = any> {
   toArray(): Promise<T[]>;
 }
 
-interface StoreLike<T = any> {
+export interface StoreLike<T = any> {
   all(): QueryLike<T>;
   get(key: any): Promise<T | undefined>;
   put(value: T): Promise<any>;
@@ -40,7 +40,7 @@ export declare function useRecord<T = any>(
   opts?: QueryOptions,
 ): RecordResult<T>;
 
-interface SyncStatusResult {
+export interface SyncStatusResult {
   running: Ref<boolean>;
   paused: Ref<boolean>;
   lastEvent: Ref<import('./sync.js').SyncEvent | null>;

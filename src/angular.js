@@ -78,10 +78,14 @@ export function createQuery(queryOrStore, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) error.set(err);
       }
     })();
 
@@ -98,10 +102,6 @@ export function createQuery(queryOrStore, opts = {}) {
     }
   }
 
-  // Initial fetch
-  refresh();
-  setupWatcher();
-
   // If called inside an injection context, auto-cleanup on destroy
   try {
     const destroyRef = inject(DestroyRef);
@@ -111,16 +111,62 @@ export function createQuery(queryOrStore, opts = {}) {
   }
 
   // If queryOrStore is a function, use effect() to track signal changes
+  // (effect runs immediately, so it handles the initial fetch)
   if (typeof queryOrStore === 'function') {
     effect(() => {
-      // Call the function to track signal dependencies
-      queryOrStore();
+      queryOrStore(); // track signal dependencies
       refresh();
       setupWatcher();
     });
+  } else {
+    // Static query — fetch once and set up watcher
+    refresh();
+    setupWatcher();
   }
 
   return { data: data.asReadonly(), loading: loading.asReadonly(), error: error.asReadonly(), refresh };
+}
+
+/**
+ * Creates Angular signals that track SyncEngine status.
+ *
+ * @param {import('./sync.js').SyncEngine} syncEngine
+ * @returns {{ running: Signal<boolean>, paused: Signal<boolean>, lastEvent: Signal<SyncEvent|null>, error: Signal<object|null>, cleanup: () => void }}
+ */
+export function createSyncStatus(syncEngine) {
+  const running = signal(syncEngine.running);
+  const paused = signal(syncEngine.paused);
+  const lastEvent = signal(null);
+  const error = signal(null);
+
+  const unsubscribe = syncEngine.addListener({
+    onSync(event) {
+      lastEvent.set(event);
+    },
+    onError(err, context) {
+      error.set({ err, context });
+    },
+    onStatusChange(status) {
+      running.set(status.running);
+      paused.set(status.paused);
+    },
+  });
+
+  // Auto-cleanup in injection context
+  try {
+    const destroyRef = inject(DestroyRef);
+    destroyRef.onDestroy(unsubscribe);
+  } catch (_) {
+    // Not in injection context — caller manages cleanup
+  }
+
+  return {
+    running: running.asReadonly(),
+    paused: paused.asReadonly(),
+    lastEvent: lastEvent.asReadonly(),
+    error: error.asReadonly(),
+    cleanup: unsubscribe,
+  };
 }
 
 /**
@@ -168,10 +214,14 @@ export function createRecord(store, key, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) error.set(err);
       }
     })();
 
@@ -188,10 +238,6 @@ export function createRecord(store, key, opts = {}) {
     }
   }
 
-  // Initial fetch
-  refresh();
-  setupWatcher();
-
   // Auto-cleanup in injection context
   try {
     const destroyRef = inject(DestroyRef);
@@ -200,13 +246,18 @@ export function createRecord(store, key, opts = {}) {
     // Not in injection context
   }
 
-  // If key is a function (signal), track changes
+  // If key is a function (signal), use effect() to track changes
+  // (effect runs immediately, so it handles the initial fetch)
   if (typeof key === 'function') {
     effect(() => {
       key();
       refresh();
       setupWatcher();
     });
+  } else {
+    // Static key — fetch once and set up watcher
+    refresh();
+    setupWatcher();
   }
 
   return { data: data.asReadonly(), loading: loading.asReadonly(), error: error.asReadonly(), refresh };

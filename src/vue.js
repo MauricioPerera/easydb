@@ -68,10 +68,14 @@ export function useQuery(queryOrStore, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) error.value = err;
       }
     })();
 
@@ -106,15 +110,6 @@ export function useQuery(queryOrStore, opts = {}) {
 }
 
 /**
- * Vue composable that fetches a single record by key.
- *
- * @param {StoreAccessor} store
- * @param {any|Ref<any>} key
- * @param {object} [opts]
- * @param {boolean} [opts.watch=true] - Auto-refresh when the record changes
- * @returns {{ data: Ref<T|undefined>, loading: Ref<boolean>, error: Ref<Error|null>, refresh: () => void }}
- */
-/**
  * Vue composable that tracks SyncEngine status reactively.
  *
  * @param {import('./sync.js').SyncEngine} syncEngine
@@ -126,35 +121,33 @@ export function useSyncStatus(syncEngine) {
   const lastEvent = ref(null);
   const error = ref(null);
 
-  const originalOnSync = syncEngine._onSync;
-  const originalOnError = syncEngine._onError;
-
-  syncEngine._onSync = (event) => {
-    lastEvent.value = event;
-    running.value = syncEngine.running;
-    paused.value = syncEngine.paused;
-    if (originalOnSync) originalOnSync(event);
-  };
-
-  syncEngine._onError = (err, context) => {
-    error.value = { err, context };
-    if (originalOnError) originalOnError(err, context);
-  };
-
-  const timer = setInterval(() => {
-    running.value = syncEngine.running;
-    paused.value = syncEngine.paused;
-  }, 500);
-
-  onUnmounted(() => {
-    clearInterval(timer);
-    syncEngine._onSync = originalOnSync;
-    syncEngine._onError = originalOnError;
+  const unsubscribe = syncEngine.addListener({
+    onSync(event) {
+      lastEvent.value = event;
+    },
+    onError(err, context) {
+      error.value = { err, context };
+    },
+    onStatusChange(status) {
+      running.value = status.running;
+      paused.value = status.paused;
+    },
   });
+
+  onUnmounted(unsubscribe);
 
   return { running, paused, lastEvent, error };
 }
 
+/**
+ * Vue composable that fetches a single record by key.
+ *
+ * @param {StoreAccessor} store
+ * @param {any|Ref<any>} key
+ * @param {object} [opts]
+ * @param {boolean} [opts.watch=true] - Auto-refresh when the record changes
+ * @returns {{ data: Ref<T|undefined>, loading: Ref<boolean>, error: Ref<Error|null>, refresh: () => void }}
+ */
 export function useRecord(store, key, opts = {}) {
   const watchEnabled = opts.watch !== false;
   const data = ref(undefined);
@@ -187,10 +180,14 @@ export function useRecord(store, key, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) error.value = err;
       }
     })();
 

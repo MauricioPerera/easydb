@@ -38,7 +38,8 @@ vi.mock('@angular/core', () => {
 });
 
 import { EasyDB, MemoryAdapter } from '../src/easydb.js';
-import { createQuery, createRecord } from '../src/angular.js';
+import { createQuery, createRecord, createSyncStatus } from '../src/angular.js';
+import { SyncEngine } from '../src/sync.js';
 
 const tick = (ms = 20) => new Promise(r => setTimeout(r, ms));
 
@@ -171,6 +172,60 @@ describe('Angular integration', () => {
     it('registers cleanup via DestroyRef', async () => {
       createRecord(db.users, 1);
       expect(_destroyCallbacks.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('createSyncStatus()', () => {
+    let db2, sync;
+
+    beforeEach(async () => {
+      db2 = await EasyDB.open('angular-sync-target-' + Math.random(), {
+        adapter: new MemoryAdapter(),
+        schema(b) { b.createStore('users', { key: 'id' }); },
+      });
+      sync = new SyncEngine(db, db2, {
+        stores: ['users'],
+        direction: 'push',
+      });
+    });
+
+    it('returns readonly signals with initial status', () => {
+      const s = createSyncStatus(sync);
+      expect(s.running()).toBe(false);
+      expect(s.paused()).toBe(false);
+      expect(s.lastEvent()).toBeNull();
+      expect(s.error()).toBeNull();
+      // Readonly — no set method
+      expect(s.running.set).toBeUndefined();
+    });
+
+    it('tracks sync events', async () => {
+      sync.start();
+      const s = createSyncStatus(sync);
+
+      await db.users.put({ id: 10, name: 'New', role: 'test' });
+      await tick(50);
+
+      expect(s.lastEvent()).not.toBeNull();
+      expect(s.lastEvent().store).toBe('users');
+      expect(s.lastEvent().type).toBe('put');
+
+      sync.stop();
+    });
+
+    it('tracks errors', () => {
+      const s = createSyncStatus(sync);
+
+      sync._handleError(new Error('angular sync err'), { op: 'push', store: 'users' });
+
+      expect(s.error()).not.toBeNull();
+      expect(s.error().err.message).toBe('angular sync err');
+    });
+
+    it('registers cleanup via DestroyRef', () => {
+      const before = _destroyCallbacks.length;
+      createSyncStatus(sync);
+      expect(_destroyCallbacks.length).toBeGreaterThan(before);
     });
   });
 });

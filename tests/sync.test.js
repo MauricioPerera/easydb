@@ -481,6 +481,69 @@ describe('SyncEngine — bidirectional', () => {
   });
 });
 
+// ── Deep equality (via sync behavior) ──
+
+describe('SyncEngine — deep equality', () => {
+  it('objects with same keys in different order are treated as equal (no conflict)', async () => {
+    const events = [];
+    // Put records with identical values but different key order
+    await source.users.put({ id: 1, name: 'Alice', role: 'admin' });
+    await target.users.put({ role: 'admin', id: 1, name: 'Alice' });
+
+    activeSync = new SyncEngine(source, target, {
+      stores: ['users'],
+      direction: 'push',
+      onSync: (e) => events.push(e),
+    });
+    activeSync.start();
+
+    // Re-put the same value to trigger a watch event
+    await source.users.put({ id: 1, name: 'Alice', role: 'admin' });
+    await tick();
+
+    // Should NOT have a conflict because values are deeply equal
+    expect(events.filter(e => e.conflict).length).toBe(0);
+  });
+
+  it('nested objects are compared deeply (no false conflict)', async () => {
+    const events = [];
+    const val = { id: 1, name: 'Alice', role: 'admin', meta: { level: 5, tags: ['a', 'b'] } };
+    await source.users.put(val);
+    await target.users.put({ id: 1, role: 'admin', name: 'Alice', meta: { tags: ['a', 'b'], level: 5 } });
+
+    activeSync = new SyncEngine(source, target, {
+      stores: ['users'],
+      direction: 'push',
+      onSync: (e) => events.push(e),
+    });
+    activeSync.start();
+
+    await source.users.put(val);
+    await tick();
+
+    expect(events.filter(e => e.conflict).length).toBe(0);
+  });
+
+  it('detects actual differences correctly (triggers conflict)', async () => {
+    const events = [];
+    await source.users.put({ id: 1, name: 'Alice', role: 'admin' });
+    await target.users.put({ id: 1, name: 'Alice', role: 'user' });
+
+    activeSync = new SyncEngine(source, target, {
+      stores: ['users'],
+      direction: 'push',
+      conflict: 'source-wins',
+      onSync: (e) => events.push(e),
+    });
+    activeSync.start();
+
+    await source.users.put({ id: 1, name: 'Alice', role: 'admin' });
+    await tick();
+
+    expect(events.filter(e => e.conflict).length).toBe(1);
+  });
+});
+
 // ── Edge cases ──
 
 describe('SyncEngine — edge cases', () => {
@@ -498,5 +561,105 @@ describe('SyncEngine — edge cases', () => {
     await tick();
 
     expect(await target.users.get(1)).toBeUndefined();
+  });
+});
+
+// ── Listener API ──
+
+describe('SyncEngine — addListener', () => {
+  it('multiple listeners receive events independently', async () => {
+    const source = await EasyDB.open('listen-src-' + Math.random(), { adapter: new MemoryAdapter(), schema });
+    const target = await EasyDB.open('listen-tgt-' + Math.random(), { adapter: new MemoryAdapter(), schema });
+
+    const sync = new SyncEngine(source, target, {
+      stores: ['users'],
+      direction: 'push',
+    });
+
+    const events1 = [];
+    const events2 = [];
+
+    const unsub1 = sync.addListener({ onSync: e => events1.push(e) });
+    const unsub2 = sync.addListener({ onSync: e => events2.push(e) });
+
+    sync.start();
+    await source.users.put({ id: 1, name: 'A', role: 'admin' });
+    await tick(30);
+
+    expect(events1.length).toBeGreaterThan(0);
+    expect(events2.length).toBeGreaterThan(0);
+    expect(events1.length).toBe(events2.length);
+
+    // Unsubscribing one doesn't affect the other
+    unsub1();
+    await source.users.put({ id: 2, name: 'B', role: 'member' });
+    await tick(30);
+
+    const count1 = events1.length;
+    expect(events2.length).toBeGreaterThan(count1);
+
+    unsub2();
+    sync.stop();
+  });
+
+  it('unsubscribe is idempotent', () => {
+    const source = { _conn: { getKeyPath: () => 'id' } };
+    const sync = new SyncEngine(source, source, { stores: [] });
+
+    const unsub = sync.addListener({ onSync: () => {} });
+    expect(sync._listeners).toHaveLength(1);
+
+    unsub();
+    expect(sync._listeners).toHaveLength(0);
+
+    unsub(); // double-call is safe
+    expect(sync._listeners).toHaveLength(0);
+  });
+
+  it('onStatusChange fires on start/stop/pause/resume', async () => {
+    const source = await EasyDB.open('status-src-' + Math.random(), { adapter: new MemoryAdapter(), schema });
+    const target = await EasyDB.open('status-tgt-' + Math.random(), { adapter: new MemoryAdapter(), schema });
+
+    const sync = new SyncEngine(source, target, { stores: ['users'], direction: 'push' });
+    const statuses = [];
+    sync.addListener({ onStatusChange: s => statuses.push({ ...s }) });
+
+    sync.start();
+    expect(statuses).toHaveLength(1);
+    expect(statuses[0]).toEqual({ running: true, paused: false });
+
+    sync.pause();
+    expect(statuses).toHaveLength(2);
+    expect(statuses[1]).toEqual({ running: true, paused: true });
+
+    await sync.resume();
+    expect(statuses).toHaveLength(3);
+    expect(statuses[2]).toEqual({ running: true, paused: false });
+
+    sync.stop();
+    expect(statuses).toHaveLength(4);
+    expect(statuses[3]).toEqual({ running: false, paused: false });
+  });
+
+  it('listener self-unsubscribe during callback does not skip others', async () => {
+    const source = await EasyDB.open('safe-src-' + Math.random(), { adapter: new MemoryAdapter(), schema });
+    const target = await EasyDB.open('safe-tgt-' + Math.random(), { adapter: new MemoryAdapter(), schema });
+
+    const sync = new SyncEngine(source, target, { stores: ['users'], direction: 'push' });
+    const calls = [];
+    let unsub1;
+
+    // First listener unsubscribes itself on first call
+    unsub1 = sync.addListener({
+      onStatusChange: () => { calls.push('A'); unsub1(); },
+    });
+    // Second listener should still fire
+    sync.addListener({
+      onStatusChange: () => { calls.push('B'); },
+    });
+
+    sync.start();
+    expect(calls).toEqual(['A', 'B']);
+    sync.stop();
   });
 });

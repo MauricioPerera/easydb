@@ -73,10 +73,14 @@ export function createQuery(queryOrStore, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) setError(err);
       }
     })();
 
@@ -156,10 +160,14 @@ export function createRecord(store, key, opts = {}) {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          refresh();
+        }
+      } catch (err) {
+        if (!cancelled) setError(err);
       }
     })();
 
@@ -191,4 +199,34 @@ export function createRecord(store, key, opts = {}) {
   onCleanup(cleanupWatcher);
 
   return { data, loading, error, refresh };
+}
+
+/**
+ * Creates Solid signals that track SyncEngine status.
+ *
+ * @param {import('./sync.js').SyncEngine} syncEngine
+ * @returns {{ running: Accessor<boolean>, paused: Accessor<boolean>, lastEvent: Accessor<SyncEvent|null>, error: Accessor<object|null> }}
+ */
+export function createSyncStatus(syncEngine) {
+  const [running, setRunning] = createSignal(syncEngine.running);
+  const [paused, setPaused] = createSignal(syncEngine.paused);
+  const [lastEvent, setLastEvent] = createSignal(null);
+  const [error, setError] = createSignal(null);
+
+  const unsubscribe = syncEngine.addListener({
+    onSync(event) {
+      setLastEvent(event);
+    },
+    onError(err, context) {
+      setError({ err, context });
+    },
+    onStatusChange({ running, paused }) {
+      setRunning(running);
+      setPaused(paused);
+    },
+  });
+
+  onCleanup(unsubscribe);
+
+  return { running, paused, lastEvent, error };
 }

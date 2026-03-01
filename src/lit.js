@@ -101,10 +101,14 @@ export class EasyDBQueryController {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        this._refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          this._refresh();
+        }
+      } catch (err) {
+        if (!cancelled) { this.error = err; this.loading = false; this._host.requestUpdate(); }
       }
     })();
 
@@ -118,6 +122,53 @@ export class EasyDBQueryController {
     if (this._watcherCleanup) {
       this._watcherCleanup();
       this._watcherCleanup = null;
+    }
+  }
+}
+
+/**
+ * Lit ReactiveController that tracks SyncEngine status
+ * and triggers host updates on sync events.
+ */
+export class EasyDBSyncStatusController {
+  /**
+   * @param {ReactiveControllerHost} host - The Lit element
+   * @param {import('./sync.js').SyncEngine} syncEngine
+   */
+  constructor(host, syncEngine) {
+    this._host = host;
+    this._syncEngine = syncEngine;
+    this.running = syncEngine.running;
+    this.paused = syncEngine.paused;
+    this.lastEvent = null;
+    this.error = null;
+    this._unsubscribe = null;
+
+    host.addController(this);
+  }
+
+  hostConnected() {
+    this._unsubscribe = this._syncEngine.addListener({
+      onSync: (event) => {
+        this.lastEvent = event;
+        this._host.requestUpdate();
+      },
+      onError: (err, context) => {
+        this.error = { err, context };
+        this._host.requestUpdate();
+      },
+      onStatusChange: (status) => {
+        this.running = status.running;
+        this.paused = status.paused;
+        this._host.requestUpdate();
+      },
+    });
+  }
+
+  hostDisconnected() {
+    if (this._unsubscribe) {
+      this._unsubscribe();
+      this._unsubscribe = null;
     }
   }
 }
@@ -186,10 +237,14 @@ export class EasyDBRecordController {
     let cancelled = false;
 
     (async () => {
-      while (!cancelled) {
-        const { done } = await watcher.next();
-        if (done || cancelled) break;
-        this._refresh();
+      try {
+        while (!cancelled) {
+          const { done } = await watcher.next();
+          if (done || cancelled) break;
+          this._refresh();
+        }
+      } catch (err) {
+        if (!cancelled) { this.error = err; this.loading = false; this._host.requestUpdate(); }
       }
     })();
 

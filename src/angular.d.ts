@@ -13,29 +13,29 @@
 
 import type { Signal } from '@angular/core';
 
-interface QueryResult<T> {
+export interface QueryResult<T> {
   data: Signal<T[]>;
   loading: Signal<boolean>;
   error: Signal<Error | null>;
   refresh: () => void;
 }
 
-interface RecordResult<T> {
+export interface RecordResult<T> {
   data: Signal<T | undefined>;
   loading: Signal<boolean>;
   error: Signal<Error | null>;
   refresh: () => void;
 }
 
-interface QueryOptions {
+export interface QueryOptions {
   watch?: boolean;
 }
 
-interface QueryLike<T = any> {
+export interface QueryLike<T = any> {
   toArray(): Promise<T[]>;
 }
 
-interface StoreLike<T = any> {
+export interface StoreLike<T = any> {
   all(): QueryLike<T>;
   get(key: any): Promise<T | undefined>;
   put(value: T): Promise<any>;
@@ -52,3 +52,15 @@ export declare function createRecord<T = any>(
   key: any | (() => any),
   opts?: QueryOptions,
 ): RecordResult<T>;
+
+export interface SyncStatusResult {
+  running: Signal<boolean>;
+  paused: Signal<boolean>;
+  lastEvent: Signal<import('./sync.js').SyncEvent | null>;
+  error: Signal<{ err: Error; context: import('./sync.js').SyncErrorContext } | null>;
+  cleanup: () => void;
+}
+
+export declare function createSyncStatus(
+  syncEngine: import('./sync.js').SyncEngine,
+): SyncStatusResult;

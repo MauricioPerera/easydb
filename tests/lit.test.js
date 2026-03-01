@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EasyDB, MemoryAdapter } from '../src/easydb.js';
-import { EasyDBQueryController, EasyDBRecordController } from '../src/lit.js';
+import { EasyDBQueryController, EasyDBRecordController, EasyDBSyncStatusController } from '../src/lit.js';
+import { SyncEngine } from '../src/sync.js';
 
 const tick = (ms = 20) => new Promise(r => setTimeout(r, ms));
 
@@ -177,6 +178,74 @@ describe('Lit integration', () => {
       await db.users.put({ id: 1, name: 'Alice Modified', role: 'admin' });
       await tick(50);
       expect(host.requestUpdate.mock.calls.length).toBe(callsBefore);
+    });
+  });
+
+  describe('EasyDBSyncStatusController', () => {
+    let db2, sync;
+
+    beforeEach(async () => {
+      db2 = await EasyDB.open('lit-sync-target-' + Math.random(), {
+        adapter: new MemoryAdapter(),
+        schema(b) { b.createStore('users', { key: 'id' }); },
+      });
+      sync = new SyncEngine(db, db2, {
+        stores: ['users'],
+        direction: 'push',
+      });
+    });
+
+    it('registers itself with the host', () => {
+      const host = createMockHost();
+      const ctrl = new EasyDBSyncStatusController(host, sync);
+      expect(host._controllers).toContain(ctrl);
+    });
+
+    it('exposes initial status', () => {
+      const host = createMockHost();
+      const ctrl = new EasyDBSyncStatusController(host, sync);
+      expect(ctrl.running).toBe(false);
+      expect(ctrl.paused).toBe(false);
+      expect(ctrl.lastEvent).toBeNull();
+      expect(ctrl.error).toBeNull();
+    });
+
+    it('tracks sync events after hostConnected', async () => {
+      sync.start();
+      const host = createMockHost();
+      const ctrl = new EasyDBSyncStatusController(host, sync);
+      host.connect();
+
+      await db.users.put({ id: 10, name: 'New', role: 'test' });
+      await tick(50);
+
+      expect(ctrl.lastEvent).not.toBeNull();
+      expect(ctrl.lastEvent.store).toBe('users');
+      expect(ctrl.lastEvent.type).toBe('put');
+      expect(host.requestUpdate).toHaveBeenCalled();
+
+      sync.stop();
+    });
+
+    it('tracks errors', () => {
+      const host = createMockHost();
+      const ctrl = new EasyDBSyncStatusController(host, sync);
+      host.connect();
+
+      sync._handleError(new Error('lit sync err'), { op: 'push', store: 'users' });
+
+      expect(ctrl.error).not.toBeNull();
+      expect(ctrl.error.err.message).toBe('lit sync err');
+    });
+
+    it('cleans up on hostDisconnected', () => {
+      const host = createMockHost();
+      const ctrl = new EasyDBSyncStatusController(host, sync);
+      host.connect();
+      host.disconnect();
+
+      // Listener should be removed
+      expect(sync._listeners).toHaveLength(0);
     });
   });
 });
