@@ -71,6 +71,17 @@ function _notify(dbName, storeName, type, key, value) {
   }
 }
 
+// ── Shared helpers ───────────────────────────────────────
+
+function _assertStore(conn, storeName) {
+  if (!conn.hasStore(storeName)) {
+    const available = conn.storeNames.join(', ');
+    throw new Error(
+      `EasyDB: Store "${storeName}" not found. Available stores: ${available || '(none)'}`
+    );
+  }
+}
+
 // ── QueryBuilder ─────────────────────────────────────────
 
 export class QueryBuilder {
@@ -88,14 +99,7 @@ export class QueryBuilder {
     this._hasExactKey = keyValue != null;
   }
 
-  _assertStore() {
-    if (!this._conn.hasStore(this._store)) {
-      const available = this._conn.storeNames.join(', ');
-      throw new Error(
-        `EasyDB: Store "${this._store}" not found. Available stores: ${available || '(none)'}`
-      );
-    }
-  }
+  _assertStore() { _assertStore(this._conn, this._store); }
 
   _clone() {
     const q = new QueryBuilder(this._conn, this._store, this._index);
@@ -239,14 +243,7 @@ export class StoreAccessor {
     this._store = storeName;
   }
 
-  _assertStore() {
-    if (!this._conn.hasStore(this._store)) {
-      const available = this._conn.storeNames.join(', ');
-      throw new Error(
-        `EasyDB: Store "${this._store}" not found. Available stores: ${available || '(none)'}`
-      );
-    }
-  }
+  _assertStore() { _assertStore(this._conn, this._store); }
 
   // ── CRUD ──
 
@@ -365,13 +362,23 @@ export class EasyDB {
     this._conn = conn;
     this._adapter = adapter;
     this._closed = false;
+    this._storeCache = new Map();
     return new Proxy(this, {
       get(target, prop) {
         if (prop in target || typeof prop === 'symbol') return target[prop];
         if (prop === 'then' || prop === 'catch' || prop === 'finally') return undefined;
         if (prop.startsWith('_')) return target[prop];
         if (target._closed) throw new Error('EasyDB: Database is closed');
-        return new StoreAccessor(conn, prop);
+        let accessor = target._storeCache.get(prop);
+        if (!accessor) {
+          accessor = new StoreAccessor(conn, prop);
+          target._storeCache.set(prop, accessor);
+        }
+        return accessor;
+      },
+      has(target, prop) {
+        if (prop in target || typeof prop === 'symbol') return true;
+        return conn.storeNames.includes(prop);
       }
     });
   }
@@ -390,7 +397,12 @@ export class EasyDB {
 
   store(name) {
     this._assertOpen();
-    return new StoreAccessor(this._conn, name);
+    let accessor = this._storeCache.get(name);
+    if (!accessor) {
+      accessor = new StoreAccessor(this._conn, name);
+      this._storeCache.set(name, accessor);
+    }
+    return accessor;
   }
 
   async transaction(storeNames, fn) {
@@ -400,6 +412,7 @@ export class EasyDB {
 
   close() {
     this._closed = true;
+    this._storeCache.clear();
     _watchers.delete(this._conn.name);
     _closeChannel(this._conn.name);
     this._conn.close();

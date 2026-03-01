@@ -85,6 +85,58 @@ describe('db.store() — explicit store access', () => {
   });
 });
 
+describe('Proxy — StoreAccessor caching', () => {
+  let db, name;
+
+  beforeEach(async () => {
+    ({ db, name } = await createTestDB());
+  });
+
+  afterEach(async () => {
+    await destroyTestDB(db, name);
+  });
+
+  it('db.storeName returns the same StoreAccessor instance', () => {
+    expect(db.users).toBe(db.users);
+    expect(db.orders).toBe(db.orders);
+  });
+
+  it('db.store() returns the same instance as Proxy access', () => {
+    expect(db.store('users')).toBe(db.users);
+  });
+
+  it('different store names return different accessors', () => {
+    expect(db.users).not.toBe(db.orders);
+  });
+});
+
+describe('Proxy — has trap ("in" operator)', () => {
+  let db, name;
+
+  beforeEach(async () => {
+    ({ db, name } = await createTestDB());
+  });
+
+  afterEach(async () => {
+    await destroyTestDB(db, name);
+  });
+
+  it('"users" in db returns true for existing stores', () => {
+    expect('users' in db).toBe(true);
+    expect('orders' in db).toBe(true);
+  });
+
+  it('"nonexistent" in db returns false for missing stores', () => {
+    expect('nonexistent' in db).toBe(false);
+  });
+
+  it('built-in properties still resolve via "in"', () => {
+    expect('stores' in db).toBe(true);
+    expect('close' in db).toBe(true);
+    expect('store' in db).toBe(true);
+  });
+});
+
 describe('Friendly error messages — store not found', () => {
   let db, name;
 

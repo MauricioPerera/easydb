@@ -481,6 +481,69 @@ describe('SyncEngine — bidirectional', () => {
   });
 });
 
+// ── Deep equality (via sync behavior) ──
+
+describe('SyncEngine — deep equality', () => {
+  it('objects with same keys in different order are treated as equal (no conflict)', async () => {
+    const events = [];
+    // Put records with identical values but different key order
+    await source.users.put({ id: 1, name: 'Alice', role: 'admin' });
+    await target.users.put({ role: 'admin', id: 1, name: 'Alice' });
+
+    activeSync = new SyncEngine(source, target, {
+      stores: ['users'],
+      direction: 'push',
+      onSync: (e) => events.push(e),
+    });
+    activeSync.start();
+
+    // Re-put the same value to trigger a watch event
+    await source.users.put({ id: 1, name: 'Alice', role: 'admin' });
+    await tick();
+
+    // Should NOT have a conflict because values are deeply equal
+    expect(events.filter(e => e.conflict).length).toBe(0);
+  });
+
+  it('nested objects are compared deeply (no false conflict)', async () => {
+    const events = [];
+    const val = { id: 1, name: 'Alice', role: 'admin', meta: { level: 5, tags: ['a', 'b'] } };
+    await source.users.put(val);
+    await target.users.put({ id: 1, role: 'admin', name: 'Alice', meta: { tags: ['a', 'b'], level: 5 } });
+
+    activeSync = new SyncEngine(source, target, {
+      stores: ['users'],
+      direction: 'push',
+      onSync: (e) => events.push(e),
+    });
+    activeSync.start();
+
+    await source.users.put(val);
+    await tick();
+
+    expect(events.filter(e => e.conflict).length).toBe(0);
+  });
+
+  it('detects actual differences correctly (triggers conflict)', async () => {
+    const events = [];
+    await source.users.put({ id: 1, name: 'Alice', role: 'admin' });
+    await target.users.put({ id: 1, name: 'Alice', role: 'user' });
+
+    activeSync = new SyncEngine(source, target, {
+      stores: ['users'],
+      direction: 'push',
+      conflict: 'source-wins',
+      onSync: (e) => events.push(e),
+    });
+    activeSync.start();
+
+    await source.users.put({ id: 1, name: 'Alice', role: 'admin' });
+    await tick();
+
+    expect(events.filter(e => e.conflict).length).toBe(1);
+  });
+});
+
 // ── Edge cases ──
 
 describe('SyncEngine — edge cases', () => {
